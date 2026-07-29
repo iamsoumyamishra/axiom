@@ -5,6 +5,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ResourcesModule } from './modules/resources/resources.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { ResourcesModule } from './modules/resources/resources.module';
     HealthModule,
     AuthModule,
     ResourcesModule,
+    AiModule,
   ],
 })
 export class AppModule {}

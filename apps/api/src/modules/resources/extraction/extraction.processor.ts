@@ -1,6 +1,6 @@
-import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent, InjectQueue } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { getPrisma } from '@axiom/data';
 import type { Prisma } from '@prisma/client';
 import { ExtractionService } from './extraction.service';
@@ -10,7 +10,10 @@ export class ExtractionProcessor extends WorkerHost {
   private readonly logger = new Logger(ExtractionProcessor.name);
   private readonly prisma = getPrisma();
 
-  constructor(private readonly extractionService: ExtractionService) {
+  constructor(
+    private readonly extractionService: ExtractionService,
+    @InjectQueue('ai-analysis') private readonly aiAnalysisQueue: Queue,
+  ) {
     super();
   }
 
@@ -66,6 +69,9 @@ export class ExtractionProcessor extends WorkerHost {
         metadata: metadata as Prisma.InputJsonValue,
       },
     });
+
+    await this.aiAnalysisQueue.add('analyze', { resourceId });
+    this.logger.log(`Queued AI analysis for resource ${resourceId}`);
   }
 
   @OnWorkerEvent('completed')

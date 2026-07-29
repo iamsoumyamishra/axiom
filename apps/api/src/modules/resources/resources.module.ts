@@ -7,7 +7,10 @@ import { ExtractionProcessor } from './extraction/extraction.processor';
 
 @Module({
   imports: [
-    BullModule.registerQueue({ name: 'extraction' }),
+    BullModule.registerQueue(
+      { name: 'extraction' },
+      { name: 'ai-analysis' },
+    ),
   ],
   controllers: [ResourcesController],
   providers: [
