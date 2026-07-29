@@ -17,15 +17,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "outDir": "./dist",
-    "baseUrl": ".",
-    "paths": {
-      "@axiom/shared": ["./packages/shared/src"],
-      "@axiom/shared/*": ["./packages/shared/src/*"],
-      "@axiom/data": ["./packages/data/src"],
-      "@axiom/data/*": ["./packages/data/src/*"],
-      "@axiom/auth": ["./packages/auth/src"],
-      "@axiom/auth/*": ["./packages/auth/src/*"]
-    }
+    "baseUrl": "."
   },
   "exclude": ["node_modules", "dist", ".next"]
 }
