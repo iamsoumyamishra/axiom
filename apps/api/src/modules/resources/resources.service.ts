@@ -1,20 +1,31 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { getPrisma } from '@axiom/data';
 import type { SaveResourceDto, ResourceQueryDto, UpdateResourceDto } from '@axiom/shared';
 import type { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ResourcesService {
+  private readonly logger = new Logger(ResourcesService.name);
   private readonly prisma = getPrisma();
 
+  constructor(
+    @InjectQueue('extraction') private readonly extractionQueue: Queue,
+  ) {}
+
   async create(dto: SaveResourceDto, userId: string) {
-    return this.prisma.resource.create({
+    const hasContent = Boolean(dto.html || dto.markdown);
+    const needsExtraction = Boolean(dto.url) && !hasContent;
+
+    const resource = await this.prisma.resource.create({
       data: {
         url: dto.url,
         title: dto.title ?? null,
         ...(dto.metadata !== undefined && { metadata: dto.metadata as Prisma.InputJsonValue }),
         resourceType: 'website',
         userId,
+        status: hasContent ? 'COMPLETED' : needsExtraction ? 'PROCESSING' : 'PENDING',
         content:
           dto.html || dto.markdown
             ? {
@@ -30,6 +41,13 @@ export class ResourcesService {
         content: true,
       },
     });
+
+    if (needsExtraction) {
+      await this.extractionQueue.add('extract', { resourceId: resource.id });
+      this.logger.log(`Queued extraction for resource ${resource.id}`);
+    }
+
+    return resource;
   }
 
   async findAll(query: ResourceQueryDto, userId: string) {
