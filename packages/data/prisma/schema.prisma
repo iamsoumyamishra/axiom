@@ -1,0 +1,280 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ResourceStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  DUPLICATE
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  image     String?
+
+  resources   Resource[]
+  projects    Project[]
+  collections Collection[]
+  tags        Tag[]
+  entities    Entity[]
+  jobs        Job[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Resource {
+  id          String         @id @default(cuid())
+  url         String?
+  title       String?
+  description String?
+  resourceType String         @default("website")
+  metadata    Json?
+  status      ResourceStatus @default(PENDING)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  content    ResourceContent?
+  aiAnalysis AIAnalysis?
+  embedding  Embedding?
+
+  projects ResourceProject[]
+  collections ResourceCollection[]
+  tags      ResourceTag[]
+  entities  ResourceEntity[]
+
+  sourceRelationships Relationship[] @relation("SourceResource")
+  targetRelationships Relationship[] @relation("TargetResource")
+
+  snapshots Snapshot[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  savedAt   DateTime @default(now())
+}
+
+model ResourceContent {
+  id         String   @id @default(cuid())
+  resourceId String   @unique
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  rawHtml    String?
+  markdown   String?
+  cleanText  String?
+
+  extractedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AIAnalysis {
+  id         String   @id @default(cuid())
+  resourceId String   @unique
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  category    String?
+  subcategory String?
+  summary     String?
+
+  importance     Int?
+  qualityScore   Float?
+  noveltyScore   Float?
+  difficulty     String?
+  readingTime    Int?
+
+  tags        String[]
+  topics      String[]
+  keyConcepts String[]
+
+  entities Json?
+
+  model       String?
+  confidence  Float?
+  reasoning   String?
+
+  duplicateOf         String?
+  duplicateConfidence Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Embedding {
+  id         String   @id @default(cuid())
+  resourceId String   @unique
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  vector Unsupported("vector(1536)")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  color       String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  resources ResourceProject[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ResourceProject {
+  resourceId String
+  projectId  String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([resourceId, projectId])
+}
+
+model Collection {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isAuto      Boolean  @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  resources ResourceCollection[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ResourceCollection {
+  resourceId   String
+  collectionId String
+  resource     Resource   @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([resourceId, collectionId])
+}
+
+model Relationship {
+  id         String   @id @default(cuid())
+  sourceId   String
+  targetId   String
+  type       String
+  confidence Float?
+
+  source Resource @relation("SourceResource", fields: [sourceId], references: [id], onDelete: Cascade)
+  target Resource @relation("TargetResource", fields: [targetId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([sourceId, targetId, type])
+}
+
+model Tag {
+  id     String @id @default(cuid())
+  name   String
+  userId String
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resources ResourceTag[]
+
+  @@unique([name, userId])
+
+  createdAt DateTime @default(now())
+}
+
+model ResourceTag {
+  resourceId String
+  tagId      String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([resourceId, tagId])
+}
+
+model Entity {
+  id     String @id @default(cuid())
+  name   String
+  type   String
+  userId String
+
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resources ResourceEntity[]
+
+  @@unique([name, type, userId])
+
+  createdAt DateTime @default(now())
+}
+
+model ResourceEntity {
+  resourceId String
+  entityId   String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  entity     Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@id([resourceId, entityId])
+}
+
+model Snapshot {
+  id         String   @id @default(cuid())
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  content    String?
+  screenshot String?
+  html       String?
+
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  type        String
+  status      JobStatus @default(PENDING)
+  payload     Json
+  result      Json?
+  error       String?
+  userId      String?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+}

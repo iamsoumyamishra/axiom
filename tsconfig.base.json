@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "esModuleInterop": true,
+    "types": ["node"],
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "@axiom/shared": ["./packages/shared/src"],
+      "@axiom/shared/*": ["./packages/shared/src/*"],
+      "@axiom/data": ["./packages/data/src"],
+      "@axiom/data/*": ["./packages/data/src/*"],
+      "@axiom/auth": ["./packages/auth/src"],
+      "@axiom/auth/*": ["./packages/auth/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", ".next"]
+}

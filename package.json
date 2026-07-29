@@ -1,0 +1,27 @@
+{
+  "name": "axiom",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI-powered knowledge platform — a second brain for the web",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "clean": "turbo clean && rm -rf node_modules",
+    "db:generate": "pnpm --filter @axiom/data db:generate",
+    "db:migrate": "pnpm --filter @axiom/data db:migrate",
+    "db:push": "pnpm --filter @axiom/data db:push",
+    "db:studio": "pnpm --filter @axiom/data db:studio"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "turbo": "^2.10.7"
+  }
+}
