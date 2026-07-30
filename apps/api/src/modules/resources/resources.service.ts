@@ -4,6 +4,7 @@ import { Queue } from 'bullmq';
 import { getPrisma } from '@axiom/data';
 import type { SaveResourceDto, ResourceQueryDto, UpdateResourceDto } from '@axiom/shared';
 import type { Prisma } from '@prisma/client';
+import { DeduplicationService } from '../deduplication/deduplication.service';
 
 @Injectable()
 export class ResourcesService {
@@ -12,9 +13,18 @@ export class ResourcesService {
 
   constructor(
     @InjectQueue('extraction') private readonly extractionQueue: Queue,
+    private readonly dedupService: DeduplicationService,
   ) {}
 
   async create(dto: SaveResourceDto, userId: string) {
+    if (dto.url) {
+      const dup = await this.dedupService.checkUrlDuplicate(userId, dto.url);
+      if (dup.exists) {
+        const existing = await this.findById(dup.resourceId!, userId);
+        return { data: existing, duplicate: true, duplicateOf: dup.resourceId! };
+      }
+    }
+
     const hasContent = Boolean(dto.html || dto.markdown);
     const needsExtraction = Boolean(dto.url) && !hasContent;
 
@@ -63,7 +73,7 @@ export class ResourcesService {
       sortOrder = 'desc',
     } = query;
 
-    const where: Prisma.ResourceWhereInput = { userId };
+    const where: Prisma.ResourceWhereInput = { userId, status: { not: 'DUPLICATE' } };
 
     if (search) {
       where.OR = [

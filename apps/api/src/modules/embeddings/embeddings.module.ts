@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { EmbeddingsService } from './embeddings.service';
 import { EmbeddingsProcessor } from './embeddings.processor';
 import { createEmbeddingProvider } from './providers/provider-registry';
+import { DeduplicationService } from '../deduplication/deduplication.service';
 import type { EmbeddingProviderConfig } from './providers/provider-registry';
 
 export function embeddingProviderFactory(configService: ConfigService) {
@@ -29,7 +30,8 @@ export function embeddingProviderFactory(configService: ConfigService) {
     },
     EmbeddingsService,
     EmbeddingsProcessor,
+    DeduplicationService,
   ],
-  exports: [EmbeddingsService, BullModule],
+  exports: [EmbeddingsService, DeduplicationService, BullModule],
 })
 export class EmbeddingsModule {}
