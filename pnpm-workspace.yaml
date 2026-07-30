@@ -7,4 +7,5 @@ allowBuilds:
   '@scarf/scarf': false
   msgpackr-extract: false
   prisma: true
+  sharp: true
 onlyBuiltDependencies: '@scarf/scarf'
