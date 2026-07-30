@@ -1,6 +1,6 @@
-import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent, InjectQueue } from '@nestjs/bullmq';
 import { Logger, Inject } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { getPrisma } from '@axiom/data';
 import { AiAnalysisService } from './ai-analysis.service';
 import { LlmError, LlmErrorType } from './providers/llm-provider.interface';
@@ -16,6 +16,7 @@ export class AiAnalysisProcessor extends WorkerHost {
     private readonly aiAnalysisService: AiAnalysisService,
     @Inject(LLM_PRIMARY_CONFIG) private readonly primaryConfig: ProviderConfig | null,
     @Inject(LLM_FALLBACK_CONFIG) private readonly fallbackConfig: ProviderConfig | null,
+    @InjectQueue('embeddings') private readonly embeddingsQueue: Queue,
   ) {
     super();
   }
@@ -88,6 +89,9 @@ export class AiAnalysisProcessor extends WorkerHost {
       });
 
       this.logger.log(`AI analysis completed for resource ${resourceId} (${provider}/${model})`);
+
+      await this.embeddingsQueue.add('embeddings', { resourceId });
+      this.logger.log(`Embeddings job queued for resource ${resourceId}`);
     } catch (error) {
       const errorMessage = error instanceof LlmError ? error.message : 'AI analysis failed';
       const errorType = error instanceof LlmError ? error.type : LlmErrorType.UNKNOWN;

@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: axiom
       POSTGRES_DB: axiom
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - axiom-pgdata:/var/lib/postgresql/data
     healthcheck:

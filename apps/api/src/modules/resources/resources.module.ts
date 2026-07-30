@@ -10,6 +10,7 @@ import { ExtractionProcessor } from './extraction/extraction.processor';
     BullModule.registerQueue(
       { name: 'extraction' },
       { name: 'ai-analysis' },
+      { name: 'embeddings' },
     ),
   ],
   controllers: [ResourcesController],

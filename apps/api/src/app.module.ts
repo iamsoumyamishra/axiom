@@ -6,6 +6,8 @@ import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ResourcesModule } from './modules/resources/resources.module';
 import { AiModule } from './modules/ai/ai.module';
+import { EmbeddingsModule } from './modules/embeddings/embeddings.module';
+import { SearchModule } from './modules/search/search.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { AiModule } from './modules/ai/ai.module';
     AuthModule,
     ResourcesModule,
     AiModule,
+    EmbeddingsModule,
+    SearchModule,
   ],
 })
 export class AppModule {}
