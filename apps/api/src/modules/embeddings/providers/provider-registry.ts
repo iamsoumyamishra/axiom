@@ -25,7 +25,7 @@ export class NullEmbeddingProvider implements EmbeddingProvider {
 }
 
 export function createEmbeddingProvider(config: EmbeddingProviderConfig): EmbeddingProvider {
-  if (!config.apiKey) {
+  if (!config.apiKey && !isLocalUrl(config.baseUrl)) {
     return new NullEmbeddingProvider();
   }
 
@@ -34,5 +34,14 @@ export function createEmbeddingProvider(config: EmbeddingProviderConfig): Embedd
       return new OpenAICompatibleEmbeddingProvider(config);
     default:
       throw new Error(`Unknown embedding provider: ${config.provider}`);
+  }
+}
+
+function isLocalUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+  } catch {
+    return false;
   }
 }

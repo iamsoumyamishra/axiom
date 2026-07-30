@@ -28,8 +28,10 @@ export class OpenAICompatibleEmbeddingProvider implements EmbeddingProvider {
     const body: Record<string, unknown> = {
       model: this.config.model,
       input: inputs,
-      dimensions: this.config.dimensions,
     };
+    if (this.config.dimensions > 0) {
+      body['dimensions'] = this.config.dimensions;
+    }
 
     let response: Response;
     try {

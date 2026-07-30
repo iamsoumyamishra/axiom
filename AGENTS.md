@@ -1,5 +1,3 @@
-# AGENTS.md
-
 # AI Bookmark Intelligence Platform
 
 ## Mission
@@ -668,3 +666,40 @@ Every engineering decision should answer one question:
 
 If the answer is no, reconsider the design.
 
+---
+
+# Implementation Notes
+
+## Env & Config (2026-07-30)
+- `.env.local` is loaded in `apps/api/src/main.ts` via `dotenv.config()` before `bootstrap()`.
+  - The path is relative (cwd is `apps/api/`), so it reads `../../.env.local` (monorepo root).
+  - ESM entry point used `import.meta.dirname` to resolve to the root.
+- `app.module.ts` Redis connection parses `REDIS_URL` with `new URL()` as fallback (prefers `REDIS_HOST`/`REDIS_PORT` when set).
+- All config values go through NestJS `ConfigModule` from `.env.local`.
+
+## Provider Registry & Local AI (2026-07-30)
+- `NullEmbeddingProvider`/`NullLlmProvider` allow empty `apiKey` when `baseUrl` points to `localhost`/`127.0.0.1`/`0.0.0.0`.
+  - This enables Ollama/n8n local AI without requiring an API key.
+- Pattern: `provider-registry.ts` checks `isLocalUrl(baseUrl)` before validating `apiKey`.
+
+## Embeddings (2026-07-30)
+- `openai-compatible.provider.ts` only sends `dimensions` body field when value > 0 (Ollama rejects this param).
+- `embeddings.module.ts` parses `EMBEDDING_DIMENSIONS` with `parseInt()` (ConfigService returns string).
+- `embeddings.service.ts` truncates text to 8000 chars before embedding (nomic-embed-text 8192-token context).
+- Schema dimension: `vector(768)` for nomic-embed-text.
+- HNSW index: `idx_embedding_hnsw` on `vector` using `vector_cosine_ops` with `m=16, ef_construction=200`.
+
+## Search (2026-07-30)
+- Hybrid: vector search (pgvector `<->`) with text-only fallback.
+- Text fallback: `to_tsvector('english')` + `ILIKE` on title.
+- **Important**: The search controller must use `@CurrentUser() user: { sub: string }` (not `@Req() req.user.userId`). JWT strategy returns `{ sub, email }` — `sub` is the user ID.
+
+## Pipeline Status (2026-07-30)
+**FULLY FUNCTIONAL** end-to-end:
+1. POST `/api/v1/resources` (save URL)
+2. BullMQ queue → `ExtractionProcessor` (fetch + parse HTML)
+3. BullMQ queue → `AiAnalysisProcessor` (Groq llama-3.3-70b → category, summary, tags, importance)
+4. BullMQ queue → `EmbeddingsProcessor` (Ollama nomic-embed-text → 768-dim vector)
+5. GET `/api/v1/search?q=...` (semantic vector search returns ranked results)
+
+Curl integration test confirms: save → extract (3s) → AI analyze (2s) → embed (26s) → search (1s).

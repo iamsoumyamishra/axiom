@@ -13,7 +13,7 @@ export function embeddingProviderFactory(configService: ConfigService) {
     baseUrl: configService.get<string>('EMBEDDING_BASE_URL', 'https://api.openai.com/v1'),
     apiKey: configService.get<string>('EMBEDDING_API_KEY', ''),
     model: configService.get<string>('EMBEDDING_MODEL', 'text-embedding-3-small'),
-    dimensions: configService.get<number>('EMBEDDING_DIMENSIONS', 1536),
+    dimensions: parseInt(configService.get<string>('EMBEDDING_DIMENSIONS', '1536') ?? '1536', 10),
   };
 
   return createEmbeddingProvider(config);

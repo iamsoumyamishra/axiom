@@ -1,6 +1,7 @@
-import { Controller, Get, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { SearchService, SearchResult } from './search.service';
 
 @ApiTags('Search')
@@ -15,12 +16,12 @@ export class SearchController {
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max results (default 20)' })
   @ApiResponse({ status: 200, description: 'Ranked search results' })
   async search(
-    @Req() req: { user: { userId: string } },
+    @CurrentUser() user: { sub: string },
     @Query('q') query: string,
     @Query('limit') limit?: string,
   ): Promise<{ data: SearchResult[]; meta: { query: string; tookMs: number } }> {
     const results = await this.searchService.search({
-      userId: req.user.userId,
+      userId: user.sub,
       query,
       limit: Math.min(parseInt(limit ?? '20', 10) || 20, 100),
     });

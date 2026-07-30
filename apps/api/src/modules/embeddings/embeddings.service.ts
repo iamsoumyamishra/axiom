@@ -9,11 +9,17 @@ export class EmbeddingsService {
 
   constructor(@Inject('EMBEDDING_PROVIDER') private readonly provider: EmbeddingProvider) {}
 
+  private truncate(text: string, maxChars: number = 8000): string {
+    if (text.length <= maxChars) return text;
+    return text.slice(0, maxChars);
+  }
+
   async generateAndStore(
     resourceId: string,
     text: string,
   ): Promise<{ dimensions: number; model: string }> {
-    const { embeddings, model } = await this.provider.generate([text]);
+    const truncated = this.truncate(text);
+    const { embeddings, model } = await this.provider.generate([truncated]);
     const vector = embeddings[0];
 
     if (!vector || vector.length === 0) {
@@ -36,7 +42,8 @@ export class EmbeddingsService {
   }
 
   async generateEmbedding(text: string): Promise<{ embedding: number[]; model: string }> {
-    const { embeddings, model } = await this.provider.generate([text]);
+    const truncated = this.truncate(text);
+    const { embeddings, model } = await this.provider.generate([truncated]);
     const embedding = embeddings[0];
     if (!embedding) {
       throw new Error('Empty embedding vector returned');

@@ -22,13 +22,22 @@ class NullLlmProvider implements LlmProvider {
   }
 }
 
+function isLocalUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+  } catch {
+    return false;
+  }
+}
+
 function loadProviderConfig(prefix: string): ProviderConfig | null {
   const provider = process.env[`${prefix}PROVIDER`] ?? process.env['LLM_PROVIDER'] ?? 'openai-compatible';
   const baseUrl = process.env[`${prefix}BASE_URL`] ?? process.env['LLM_BASE_URL'] ?? 'https://api.openai.com/v1';
   const apiKey = process.env[`${prefix}API_KEY`] ?? process.env['LLM_API_KEY'] ?? '';
   const model = process.env[`${prefix}MODEL`] ?? process.env['LLM_MODEL'] ?? 'gpt-4o-mini';
 
-  if (!apiKey) return null;
+  if (!apiKey && !isLocalUrl(baseUrl)) return null;
 
   return {
     provider,
