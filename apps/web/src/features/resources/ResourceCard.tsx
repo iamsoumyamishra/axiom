@@ -87,6 +87,34 @@ export function ResourceCard({ resource }: { resource: ResourceListItem }) {
               ))}
             </div>
           )}
+          {resource.projects.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {resource.projects.map(({ project }) => (
+                <span
+                  key={project.id}
+                  className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border"
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: project.color ?? '#64748b' }}
+                  />
+                  {project.name}
+                </span>
+              ))}
+            </div>
+          )}
+          {resource.collections.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {resource.collections.map(({ collection }) => (
+                <span
+                  key={collection.id}
+                  className="text-[11px] px-1.5 py-0.5 text-violet-700 bg-violet-50 border border-violet-200 rounded"
+                >
+                  {collection.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </a>

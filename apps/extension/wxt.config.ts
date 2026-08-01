@@ -5,6 +5,11 @@ export default defineConfig({
   srcDir: 'src',
   extensionApi: 'chrome',
   modules: [],
+  dev: {
+    server: {
+      port: 3001,
+    },
+  },
   manifest: {
     name: 'Axiom',
     description: 'AI-powered knowledge platform — save anything, find it naturally',

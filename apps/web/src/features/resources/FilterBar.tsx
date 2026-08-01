@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { apiGet } from '../../lib/api';
 import type { ResourceFilters } from './types';
 
 interface FilterBarProps {
@@ -9,8 +10,33 @@ interface FilterBarProps {
   total: number;
 }
 
+interface ProjectOption {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+interface CollectionOption {
+  id: string;
+  name: string;
+  isAuto: boolean;
+}
+
 export function FilterBar({ filters, onFiltersChange, total }: FilterBarProps) {
   const [search, setSearch] = useState(filters.search ?? '');
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [collections, setCollections] = useState<CollectionOption[]>([]);
+
+  useEffect(() => {
+    apiGet<ProjectOption[]>('projects').then((res) => {
+      if (res.success && res.data) setProjects(res.data);
+    });
+    apiGet<{ auto: CollectionOption[]; manual: CollectionOption[] }>('collections').then((res) => {
+      if (res.success && res.data) {
+        setCollections([...res.data.auto, ...res.data.manual]);
+      }
+    });
+  }, []);
 
   const update = (patch: Partial<ResourceFilters>) => {
     onFiltersChange({ ...filters, ...patch, page: 1 });
@@ -32,6 +58,30 @@ export function FilterBar({ filters, onFiltersChange, total }: FilterBarProps) {
           className="w-full px-3 py-1.5 text-sm border border-input rounded-md bg-background"
         />
       </form>
+      <select
+        value={filters.projectId ?? ''}
+        onChange={(e) => update({ projectId: e.target.value || undefined })}
+        className="px-2 py-1.5 text-sm border border-input rounded-md bg-background"
+      >
+        <option value="">All projects</option>
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <select
+        value={filters.collectionId ?? ''}
+        onChange={(e) => update({ collectionId: e.target.value || undefined })}
+        className="px-2 py-1.5 text-sm border border-input rounded-md bg-background"
+      >
+        <option value="">All collections</option>
+        {collections.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
       <select
         value={filters.sortBy ?? 'savedAt'}
         onChange={(e) => update({ sortBy: e.target.value as ResourceFilters['sortBy'] })}

@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { apiGet } from '../../../lib/api';
 import { SearchBar } from '../../../features/search/SearchBar';
 import { SearchResults } from '../../../features/search/SearchResults';
@@ -13,19 +15,30 @@ interface SearchResult {
   distance: number | null;
 }
 
-export default function SearchPage() {
+function SearchContent() {
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [meta, setMeta] = useState<{ query: string; tookMs: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSearch = async (query: string) => {
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) {
+      setQuery(q);
+      void handleSearch(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const handleSearch = async (q: string) => {
     setLoading(true);
     setError('');
     try {
       const res = await apiGet<{ data: SearchResult[]; meta: { query: string; tookMs: number } }>(
         'search',
-        { q: query, limit: '20' },
+        { q, limit: '20' },
       );
       if (res.success && res.data) {
         setResults(res.data.data);
@@ -43,7 +56,12 @@ export default function SearchPage() {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-semibold">Search</h2>
-      <SearchBar onSearch={handleSearch} loading={loading} />
+      <SearchBar
+        value={query}
+        onChange={setQuery}
+        onSearch={handleSearch}
+        loading={loading}
+      />
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
@@ -59,5 +77,13 @@ export default function SearchPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={null}>
+      <SearchContent />
+    </Suspense>
   );
 }

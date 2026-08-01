@@ -5,6 +5,7 @@ import { getPrisma } from '@axiom/data';
 import { AiAnalysisService } from './ai-analysis.service';
 import { LlmError, LlmErrorType } from './providers/llm-provider.interface';
 import { LLM_PRIMARY_CONFIG, LLM_FALLBACK_CONFIG } from './tokens';
+import { CollectionsService } from '../collections/collections.service';
 import type { ProviderConfig } from './providers/provider-registry';
 
 @Processor('ai-analysis')
@@ -17,6 +18,7 @@ export class AiAnalysisProcessor extends WorkerHost {
     @Inject(LLM_PRIMARY_CONFIG) private readonly primaryConfig: ProviderConfig | null,
     @Inject(LLM_FALLBACK_CONFIG) private readonly fallbackConfig: ProviderConfig | null,
     @InjectQueue('embeddings') private readonly embeddingsQueue: Queue,
+    private readonly collectionsService: CollectionsService,
   ) {
     super();
   }
@@ -89,6 +91,14 @@ export class AiAnalysisProcessor extends WorkerHost {
       });
 
       this.logger.log(`AI analysis completed for resource ${resourceId} (${provider}/${model})`);
+
+      try {
+        await this.collectionsService.syncResourceCollections(resourceId, resource.userId, result.tags);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to sync auto collections for resource ${resourceId}: ${(error as Error).message}`,
+        );
+      }
 
       await this.embeddingsQueue.add('embeddings', { resourceId });
       this.logger.log(`Embeddings job queued for resource ${resourceId}`);

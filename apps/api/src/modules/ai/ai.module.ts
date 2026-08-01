@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { AiAnalysisService } from './ai-analysis.service';
 import { AiAnalysisProcessor } from './ai-analysis.processor';
 import { createProvidersFromEnv } from './providers/provider-registry';
+import { CollectionsModule } from '../collections/collections.module';
 import {
   LLM_PRIMARY_PROVIDER,
   LLM_PRIMARY_CONFIG,
@@ -13,6 +14,7 @@ import {
 @Module({
   imports: [
     BullModule.registerQueue({ name: 'ai-analysis' }),
+    CollectionsModule,
   ],
   providers: [
     {

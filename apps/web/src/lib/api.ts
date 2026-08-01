@@ -2,10 +2,11 @@ export async function apiFetch<T>(
   path: string,
   options?: RequestInit,
 ): Promise<{ success: boolean; data?: T; error?: { code: string; message: string } }> {
+  const hasBody = options?.body !== undefined;
   const res = await fetch(`/api/proxy/${path}`, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: options?.body ? JSON.stringify(options.body) : undefined,
+    headers: { ...(hasBody ? { 'Content-Type': 'application/json' } : {}), ...options?.headers },
+    body: hasBody ? JSON.stringify(options.body) : undefined,
   });
 
   return res.json();

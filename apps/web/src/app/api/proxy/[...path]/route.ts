@@ -9,7 +9,9 @@ async function handler(req: NextRequest, { params }: { params: Promise<{ path: s
   const token = cookieStore.get('axiom_token')?.value;
 
   const url = `${API_BASE}/${path.join('/')}${req.nextUrl.search}`;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {};
+  const incomingContentType = req.headers.get('content-type');
+  if (incomingContentType) headers['Content-Type'] = incomingContentType;
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const body = req.method !== 'GET' ? req.body : null;

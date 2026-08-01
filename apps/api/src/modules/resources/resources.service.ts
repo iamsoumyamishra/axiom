@@ -57,7 +57,43 @@ export class ResourcesService {
       this.logger.log(`Queued extraction for resource ${resource.id}`);
     }
 
-    return resource;
+    if (dto.projectIds?.length) {
+      await this.linkProjects(resource.id, dto.projectIds, userId);
+    }
+
+    if (dto.collectionIds?.length) {
+      await this.linkCollections(resource.id, dto.collectionIds, userId);
+    }
+
+    return this.findById(resource.id, userId);
+  }
+
+  private async linkProjects(resourceId: string, projectIds: string[], userId: string) {
+    const owned = await this.prisma.project.findMany({
+      where: { userId, id: { in: projectIds } },
+      select: { id: true },
+    });
+    for (const project of owned) {
+      await this.prisma.resourceProject.upsert({
+        where: { resourceId_projectId: { resourceId, projectId: project.id } },
+        update: {},
+        create: { resourceId, projectId: project.id },
+      });
+    }
+  }
+
+  private async linkCollections(resourceId: string, collectionIds: string[], userId: string) {
+    const owned = await this.prisma.collection.findMany({
+      where: { userId, id: { in: collectionIds } },
+      select: { id: true },
+    });
+    for (const collection of owned) {
+      await this.prisma.resourceCollection.upsert({
+        where: { resourceId_collectionId: { resourceId, collectionId: collection.id } },
+        update: {},
+        create: { resourceId, collectionId: collection.id },
+      });
+    }
   }
 
   async findAll(query: ResourceQueryDto, userId: string) {
@@ -120,6 +156,9 @@ export class ResourcesService {
           projects: {
             include: { project: { select: { id: true, name: true, color: true } } },
           },
+          collections: {
+            include: { collection: { select: { id: true, name: true, isAuto: true } } },
+          },
         },
       }),
       this.prisma.resource.count({ where }),
@@ -147,6 +186,9 @@ export class ResourcesService {
         tags: { include: { tag: { select: { id: true, name: true } } } },
         projects: {
           include: { project: { select: { id: true, name: true, color: true } } },
+        },
+        collections: {
+          include: { collection: { select: { id: true, name: true, isAuto: true } } },
         },
         entities: { include: { entity: true } },
       },
@@ -201,6 +243,9 @@ export class ResourcesService {
         tags: { include: { tag: { select: { id: true, name: true } } } },
         projects: {
           include: { project: { select: { id: true, name: true, color: true } } },
+        },
+        collections: {
+          include: { collection: { select: { id: true, name: true, isAuto: true } } },
         },
       },
     });

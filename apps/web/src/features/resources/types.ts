@@ -12,6 +12,7 @@ export interface ResourceListItem {
   savedAt: string;
   tags: { tag: { id: string; name: string } }[];
   projects: { project: { id: string; name: string; color: string | null } }[];
+  collections: { collection: { id: string; name: string; isAuto: boolean } }[];
 }
 
 export interface ResourceDetail extends ResourceListItem {
@@ -60,6 +61,8 @@ export interface ResourceFilters {
   search?: string;
   category?: string;
   tag?: string;
+  projectId?: string;
+  collectionId?: string;
   sortBy?: 'savedAt' | 'createdAt' | 'title' | 'importance';
   sortOrder?: 'asc' | 'desc';
   page?: number;

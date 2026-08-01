@@ -8,6 +8,8 @@ export const saveResourceSchema = z.object({
   markdown: z.string().max(5_000_000).optional(),
   metadata: z.record(z.unknown()).optional(),
   screenshot: z.string().max(10_000_000).optional(),
+  projectIds: z.array(z.string().min(1)).max(50).optional(),
+  collectionIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
 export const saveTextSchema = z.object({
@@ -33,6 +35,5 @@ export const updateResourceSchema = z.object({
   title: z.string().max(500).optional(),
   description: z.string().max(5000).optional(),
   tags: z.array(z.string().max(50)).max(50).optional(),
-  projectId: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
 });

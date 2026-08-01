@@ -31,6 +31,8 @@ export function ResourceList() {
         search: f.search,
         category: f.category,
         tag: f.tag,
+        projectId: f.projectId,
+        collectionId: f.collectionId,
       });
       if (res.success && res.data) {
         setResources(res.data.data);

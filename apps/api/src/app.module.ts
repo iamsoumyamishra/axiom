@@ -8,6 +8,9 @@ import { ResourcesModule } from './modules/resources/resources.module';
 import { AiModule } from './modules/ai/ai.module';
 import { EmbeddingsModule } from './modules/embeddings/embeddings.module';
 import { SearchModule } from './modules/search/search.module';
+import { ProjectsModule } from './modules/projects/projects.module';
+import { CollectionsModule } from './modules/collections/collections.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -36,6 +39,9 @@ import { SearchModule } from './modules/search/search.module';
     AiModule,
     EmbeddingsModule,
     SearchModule,
+    ProjectsModule,
+    CollectionsModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

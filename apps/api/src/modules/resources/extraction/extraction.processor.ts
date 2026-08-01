@@ -36,7 +36,18 @@ export class ExtractionProcessor extends WorkerHost {
       return;
     }
 
-    const extracted = await this.extractionService.fetchAndExtract(resource.url);
+    let extracted: Awaited<ReturnType<typeof this.extractionService.fetchAndExtract>>;
+    try {
+      extracted = await this.extractionService.fetchAndExtract(resource.url);
+    } catch (error) {
+      const message = (error as Error).message ?? 'Unknown extraction error';
+      this.logger.error(`Extraction failed for resource ${resourceId}: ${message}`);
+      await this.prisma.resource.update({
+        where: { id: resourceId },
+        data: { status: 'FAILED' },
+      });
+      throw error;
+    }
 
     await this.prisma.resourceContent.upsert({
       where: { resourceId },

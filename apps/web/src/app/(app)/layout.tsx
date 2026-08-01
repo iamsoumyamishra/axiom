@@ -1,21 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Menu, Plus } from 'lucide-react';
 import { useAuth } from '../../features/auth/useAuth';
 import { SaveResourceDialog } from '../../features/resources/SaveResourceDialog';
-
-const nav = [
-  { href: '/resources', label: 'Resources', icon: '📑' },
-  { href: '/search', label: 'Search', icon: '🔍' },
-];
+import { Sidebar } from '../../features/layout/Sidebar';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading, logout } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
   const [saveOpen, setSaveOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) router.push('/login');
@@ -23,48 +19,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (isLoading || !user) return null;
 
+  const closeSidebar = () => setSidebarOpen(false);
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b px-4 sm:px-6 py-3 flex items-center justify-between bg-background">
-        <div className="flex items-center gap-6">
-          <Link href="/resources" className="text-lg font-bold">Axiom</Link>
-          <nav className="hidden sm:flex items-center gap-1">
-            {nav.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(item.href + '/');
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                    active
-                      ? 'bg-secondary text-secondary-foreground font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen flex">
+      <Sidebar
+        open={sidebarOpen}
+        onClose={closeSidebar}
+        onSave={() => setSaveOpen(true)}
+        userEmail={user.email}
+        onLogout={logout}
+      />
+
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile top bar */}
+        <header className="flex items-center justify-between px-4 h-14 border-b md:hidden">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <span className="text-lg font-bold tracking-tight">Axiom</span>
           <button
             onClick={() => setSaveOpen(true)}
-            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-opacity"
+            className="rounded-md p-1 text-primary hover:bg-primary/10"
+            aria-label="Save resource"
           >
-            + Save
+            <Plus className="h-5 w-5" />
           </button>
-          <button
-            onClick={logout}
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-      <main className="flex-1 p-4 sm:p-6 max-w-5xl w-full mx-auto">
-        {children}
-      </main>
+        </header>
+
+        <main className="flex-1 p-4 sm:p-6 max-w-5xl w-full mx-auto">
+          {children}
+        </main>
+      </div>
+
       <SaveResourceDialog
         open={saveOpen}
         onOpenChange={setSaveOpen}

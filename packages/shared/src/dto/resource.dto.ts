@@ -6,6 +6,8 @@ export interface SaveResourceDto {
   markdown?: string;
   metadata?: Record<string, unknown>;
   screenshot?: string;
+  projectIds?: string[];
+  collectionIds?: string[];
 }
 
 export interface SaveTextDto {
@@ -31,6 +33,5 @@ export interface UpdateResourceDto {
   title?: string;
   description?: string;
   tags?: string[];
-  projectId?: string;
   metadata?: Record<string, unknown>;
 }
