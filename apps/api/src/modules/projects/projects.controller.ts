@@ -24,9 +24,23 @@ export class ProjectsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all projects' })
-  async findAll(@CurrentUser() user: { sub: string }) {
-    return this.projectsService.findAll(user.sub);
+  @ApiOperation({ summary: 'List all projects (cursor paginated)' })
+  async findAll(
+    @CurrentUser() user: { sub: string },
+    @Query('cursor') cursor?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.projectsService.findAll(
+      user.sub,
+      cursor,
+      Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20)),
+    );
+  }
+
+  @Get('options')
+  @ApiOperation({ summary: 'All projects as lightweight options (dropdowns)' })
+  async findOptions(@CurrentUser() user: { sub: string }) {
+    return this.projectsService.findOptions(user.sub);
   }
 
   @Get(':id')
@@ -34,13 +48,13 @@ export class ProjectsController {
   async findById(
     @CurrentUser() user: { sub: string },
     @Param('id') id: string,
-    @Query('page') page?: string,
+    @Query('cursor') cursor?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     return this.projectsService.findById(
       id,
       user.sub,
-      Math.max(1, parseInt(page ?? '1', 10) || 1),
+      cursor,
       Math.min(100, Math.max(1, parseInt(pageSize ?? '50', 10) || 50)),
     );
   }

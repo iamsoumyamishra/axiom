@@ -37,15 +37,43 @@ export class ProjectsService {
     });
   }
 
-  async findAll(userId: string) {
+  async findAll(userId: string, cursor?: string, pageSize = 20) {
+    let cursorValid = false;
+    if (cursor) {
+      const existing = await this.prisma.project.findFirst({
+        where: { id: cursor, userId },
+        select: { id: true },
+      });
+      cursorValid = Boolean(existing);
+    }
+
+    const [rows, total] = await Promise.all([
+      this.prisma.project.findMany({
+        where: { userId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...(cursorValid ? { cursor: { id: cursor }, skip: 1 } : {}),
+        take: pageSize + 1,
+        include: { _count: { select: { resources: true } } },
+      }),
+      this.prisma.project.count({ where: { userId } }),
+    ]);
+
+    const hasMore = rows.length > pageSize;
+    const data = hasMore ? rows.slice(0, pageSize) : rows;
+    const nextCursor = hasMore ? data[data.length - 1]!.id : null;
+
+    return { data, meta: { total, pageSize, nextCursor, hasMore } };
+  }
+
+  async findOptions(userId: string) {
     return this.prisma.project.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { resources: true } } },
+      select: { id: true, name: true, color: true },
     });
   }
 
-  async findById(id: string, userId: string, page = 1, pageSize = 50) {
+  async findById(id: string, userId: string, cursor?: string, pageSize = 50) {
     const project = await this.prisma.project.findFirst({
       where: { id, userId },
       include: { _count: { select: { resources: true } } },
@@ -55,26 +83,40 @@ export class ProjectsService {
       throw new NotFoundException('Project not found');
     }
 
+    let cursorValid = false;
+    if (cursor) {
+      const existing = await this.prisma.resource.findFirst({
+        where: { id: cursor, userId },
+        select: { id: true },
+      });
+      cursorValid = Boolean(existing);
+    }
+
+    const where: Prisma.ResourceWhereInput = {
+      userId,
+      status: { not: 'DUPLICATE' },
+      projects: { some: { projectId: id } },
+    };
+
     const [resources, total] = await Promise.all([
-      this.prisma.resourceProject.findMany({
-        where: { projectId: id },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: { resource: { select: RESOURCE_SELECT } },
+      this.prisma.resource.findMany({
+        where,
+        orderBy: [{ savedAt: 'desc' }, { id: 'desc' }],
+        ...(cursorValid ? { cursor: { id: cursor }, skip: 1 } : {}),
+        take: pageSize + 1,
+        select: RESOURCE_SELECT,
       }),
-      this.prisma.resourceProject.count({ where: { projectId: id } }),
+      this.prisma.resource.count({ where }),
     ]);
+
+    const hasMore = resources.length > pageSize;
+    const data = hasMore ? resources.slice(0, pageSize) : resources;
+    const nextCursor = hasMore ? data[data.length - 1]!.id : null;
 
     return {
       ...project,
-      resources: resources.map((rp) => rp.resource),
-      meta: {
-        total,
-        page,
-        pageSize,
-        totalPages: Math.ceil(total / pageSize),
-      },
+      resources: data,
+      meta: { total, pageSize, nextCursor, hasMore },
     };
   }
 

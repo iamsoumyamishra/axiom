@@ -1,3 +1,5 @@
+import type { CursorListResponse } from '../../lib/cursor';
+
 export type ResourceStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'DUPLICATE';
 
 export interface ResourceListItem {
@@ -52,11 +54,6 @@ export interface ResourceDetail extends ResourceListItem {
   }[];
 }
 
-export interface PaginatedResponse<T> {
-  data: T[];
-  meta: { total: number; page: number; pageSize: number; totalPages: number };
-}
-
 export interface ResourceFilters {
   search?: string;
   category?: string;
@@ -65,9 +62,10 @@ export interface ResourceFilters {
   collectionId?: string;
   sortBy?: 'savedAt' | 'createdAt' | 'title' | 'importance';
   sortOrder?: 'asc' | 'desc';
-  page?: number;
   pageSize?: number;
 }
+
+export type ResourceListResponse = CursorListResponse<ResourceListItem>;
 
 export interface RelatedResource {
   relationshipId: string;

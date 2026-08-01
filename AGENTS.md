@@ -690,8 +690,13 @@ If the answer is no, reconsider the design.
 - HNSW index: `idx_embedding_hnsw` on `vector` using `vector_cosine_ops` with `m=16, ef_construction=200`.
 
 ## Search (2026-07-30)
-- Hybrid: vector search (pgvector `<=>` cosine distance) with text-only fallback.
+- **Hybrid (2026-08-01)**: vector + keyword fused with **Reciprocal Rank Fusion** (`k=60`), fetch `min(offset + pageSize*2, 200)` per retriever, merge, slice `[offset, offset+pageSize]`. `meta.mode` = `'hybrid'` or `'keyword'` (embedding failure fallback). Cursor = opaque `base64url({"o":<offset>})` into the fused list; `limit` kept as alias for `pageSize`.
+- Keyword retriever matches `title` (tsvector + ILIKE) and `description` (ILIKE) over all non-DUPLICATE resources — so non-embedded resources surface on exact-title searches.
+- Enriched results: `score` (RRF), `distance` (vector cosine, null for keyword-only hits), `status`, `resourceType`, `category`, `importance`, `summary` snippet, `tags`. Snippet = AI summary, else ~240-char window around first query term from `cleanText`/`markdown`/`description`.
+- Filters: `category`/`tag`/`projectId` query params via EXISTS subqueries.
 - **Pitfall (2026-08-01)**: pgvector's `<->` is **L2** distance, `<#>` is negative inner product, `<=>` is **cosine**. The HNSW index uses `vector_cosine_ops`, which is only usable by `<=>`. Search, dedup, and relationships must all use `<=>` — L2 produced wrong neighbors and silently bypassed the index.
+- **Pitfall (2026-08-01)**: `$queryRawUnsafe` filter params must be numbered relative to the **base query params** (vector: `$1..$3` embedding/userId/limit → filters start at `$4`; keyword: `$1..$4` → filters start at `$5`). `buildFilters(options, offset)`.
+- `GET /api/v1/search/facets` returns distinct categories + tags for filter dropdowns.
 - Text fallback: `to_tsvector('english')` + `ILIKE` on title.
 - **Important**: The search controller must use `@CurrentUser() user: { sub: string }` (not `@Req() req.user.userId`). JWT strategy returns `{ sub, email }` — `sub` is the user ID.
 
@@ -704,6 +709,17 @@ If the answer is no, reconsider the design.
 5. Dedup thresholds (L2-era, now applied to cosine): `< 0.1` = duplicate, `< 0.3` = merge suggestion. Similar bar is `0.6`.
 6. Verified: save → pipeline → hook auto-creates link (Domain name ↔ IANA Example Domains, conf 0.744); backfill script for existing embedded resources created 6 rows for the real user.
 7. `DELETE /api/v1/relationships/:id` removes a link.
+
+## Cursor Pagination (2026-08-02)
+**All list/detail endpoints use opaque cursor pagination (no page numbers):**
+1. API contract: `cursor` query param in, `meta: { total?, pageSize, nextCursor, hasMore }` out. `nextCursor` = last row id (resources/projects/collections), or opaque token (search).
+2. Sort **always includes the PK as tiebreaker**: `orderBy [{ <sortKey>: dir }, { id: dir }]` — required for deterministic Prisma cursor (`skip: 1` after `cursor: { id }`).
+3. Fetch `take: pageSize + 1`; `hasMore = rows.length > pageSize`; slice to pageSize; `nextCursor = hasMore ? lastId : null`.
+4. **Cursor guard**: before using a cursor, verify the row exists in the scoped `where` (user + filters). If not → treat as first page. Prevents off-by-one when filters/user change between requests.
+5. Endpoints: `GET /resources` (sortBy/sortOrder honored, +id), `/projects`, `/projects/:id`, `/collections?type=auto|manual`, `/collections/:id`. Detail resources ordered `savedAt desc, id desc` via `Resource` directly (not the join model).
+6. Dropdowns use dedicated endpoints returning ALL rows: `GET /projects/options` (`{id,name,color}`), `GET /collections/options` (`{id,name,isAuto}`). **Must be declared BEFORE `@Get(':id')`** — Nest matches routes in declaration order.
+7. Search cursor = `base64url({"o":<offset>})` into the fused RRF list; per-retriever fetch capped at 200 (`MAX_FETCH`) → deep pages return empty + `hasMore:false` beyond the cap. Ranked lists can shift between requests (inherent to ranked search pagination); clients just pass `nextCursor` back.
+8. Web: `apps/web/src/lib/useCursorFeed.ts` — generic hook (scopeKey reset, `loadMore` append + dedupe by id, `refresh`, `removeItem`); `apps/web/src/components/InfiniteScroll.tsx` — IntersectionObserver sentinel (rootMargin 200px), only fires when `hasMore && !loading`.
 
 ## Pipeline Status (2026-07-30)
 **FULLY FUNCTIONAL** end-to-end:

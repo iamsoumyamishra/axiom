@@ -1,48 +1,42 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, FolderKanban } from 'lucide-react';
 import { apiGet, apiDelete } from '../../lib/api';
+import { useCursorFeed } from '../../lib/useCursorFeed';
+import { InfiniteScroll } from '../../components/InfiniteScroll';
 import { ProjectCard } from './ProjectCard';
 import { ProjectFormDialog } from './ProjectFormDialog';
 import { Button } from '../../components/ui/button';
-import type { Project } from './types';
+import type { Project, ProjectListResponse } from './types';
 
 export function ProjectsList() {
   const router = useRouter();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
 
-  const fetchProjects = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await apiGet<Project[]>('projects');
-      if (res.success && res.data) {
-        setProjects(res.data);
-      } else {
-        setError(res.error?.message ?? 'Failed to load projects');
-      }
-    } catch {
-      setError('Network error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProjects();
-  }, []);
+  const { items: projects, meta, loading, loadingMore, error, loadMore, refresh, removeItem } =
+    useCursorFeed<Project>({
+      scopeKey: 'projects',
+      pageSize: 20,
+      fetcher: async (cursor, pageSize) => {
+        const res = await apiGet<ProjectListResponse>('projects', {
+          cursor,
+          pageSize: String(pageSize),
+        });
+        if (!res.success || !res.data) {
+          throw new Error(res.error?.message ?? 'Failed to load projects');
+        }
+        return res.data;
+      },
+    });
 
   const handleDelete = async (project: Project) => {
     if (!confirm(`Delete project "${project.name}"? Its resources will be kept.`)) return;
     const res = await apiDelete(`projects/${project.id}`);
     if (res.success) {
-      setProjects((p) => p.filter((x) => x.id !== project.id));
+      removeItem(project.id);
     }
   };
 
@@ -60,7 +54,7 @@ export function ProjectsList() {
         </Button>
       </div>
 
-      {loading && (
+      {loading && projects.length === 0 && (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="h-28 rounded-lg border bg-secondary/50 animate-pulse" />
@@ -85,41 +79,47 @@ export function ProjectsList() {
         </div>
       )}
 
-      {!loading && projects.length > 0 && (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((p) => (
-            <div key={p.id} className="relative group">
-              <ProjectCard project={p} />
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => {
-                    setEditing(p);
-                    setDialogOpen(true);
-                  }}
-                >
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 px-2 text-xs text-destructive"
-                  onClick={() => handleDelete(p)}
-                >
-                  Delete
-                </Button>
+      {projects.length > 0 && (
+        <InfiniteScroll
+          hasMore={meta?.hasMore ?? false}
+          loading={loading || loadingMore}
+          onLoadMore={loadMore}
+        >
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {projects.map((p) => (
+              <div key={p.id} className="relative group">
+                <ProjectCard project={p} />
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      setEditing(p);
+                      setDialogOpen(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-xs text-destructive"
+                    onClick={() => handleDelete(p)}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </InfiniteScroll>
       )}
 
       <ProjectFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onSaved={() => fetchProjects()}
+        onSaved={refresh}
         project={editing}
       />
     </div>

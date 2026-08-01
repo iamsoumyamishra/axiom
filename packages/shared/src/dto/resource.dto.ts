@@ -18,7 +18,7 @@ export interface SaveTextDto {
 }
 
 export interface ResourceQueryDto {
-  page?: number;
+  cursor?: string;
   pageSize?: number;
   search?: string;
   category?: string;

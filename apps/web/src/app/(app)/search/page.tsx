@@ -1,79 +1,96 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
 import { apiGet } from '../../../lib/api';
+import { useCursorFeed } from '../../../lib/useCursorFeed';
+import { InfiniteScroll } from '../../../components/InfiniteScroll';
 import { SearchBar } from '../../../features/search/SearchBar';
 import { SearchResults } from '../../../features/search/SearchResults';
-
-interface SearchResult {
-  id: string;
-  title: string | null;
-  url: string | null;
-  savedAt: string;
-  distance: number | null;
-}
+import {
+  SearchFilters,
+  type SearchFiltersValue,
+} from '../../../features/search/SearchFilters';
+import type { SearchMeta, SearchResult } from '../../../features/search/types';
 
 function SearchContent() {
   const searchParams = useSearchParams();
+  const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [meta, setMeta] = useState<{ query: string; tookMs: number } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [filters, setFilters] = useState<SearchFiltersValue>({});
 
   useEffect(() => {
     const q = searchParams.get('q');
     if (q) {
       setQuery(q);
-      void handleSearch(q);
+      setInput(q);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const handleSearch = async (q: string) => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await apiGet<{ data: SearchResult[]; meta: { query: string; tookMs: number } }>(
-        'search',
-        { q, limit: '20' },
-      );
-      if (res.success && res.data) {
-        setResults(res.data.data);
-        setMeta(res.data.meta);
-      } else {
-        setError(res.error?.message ?? 'Search failed');
-      }
-    } catch {
-      setError('Network error');
-    } finally {
-      setLoading(false);
-    }
+  const params = { q: query, ...filters };
+  const enabled = query.trim().length > 0;
+
+  const { items: results, meta, loading, loadingMore, error, loadMore } =
+    useCursorFeed<SearchResult, SearchMeta>({
+      scopeKey: JSON.stringify({ path: 'search', params }),
+      pageSize: 20,
+      enabled,
+      fetcher: async (cursor, pageSize) => {
+        const res = await apiGet<{ data: SearchResult[]; meta: SearchMeta }>('search', {
+          q: params.q,
+          cursor,
+          pageSize: String(pageSize),
+          category: params.category,
+          tag: params.tag,
+          projectId: params.projectId,
+        });
+        if (!res.success || !res.data) {
+          throw new Error(res.error?.message ?? 'Search failed');
+        }
+        return res.data;
+      },
+    });
+
+  const handleFiltersChange = (patch: SearchFiltersValue) => {
+    setFilters((f) => ({ ...f, ...patch }));
   };
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-semibold">Search</h2>
       <SearchBar
-        value={query}
-        onChange={setQuery}
-        onSearch={handleSearch}
+        value={input}
+        onChange={setInput}
+        onSearch={setQuery}
         loading={loading}
       />
-      {error && (
+      <SearchFilters value={filters} onChange={handleFiltersChange} />
+      {enabled && error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
-      {meta && (
-        <SearchResults results={results} query={meta.query} tookMs={meta.tookMs} />
+      {enabled && !meta && loading && (
+        <div className="text-center py-12 text-muted-foreground">
+          <p className="text-lg">Searching…</p>
+        </div>
       )}
-      {!meta && !loading && (
+      {enabled && meta && (
+        <InfiniteScroll
+          hasMore={meta.hasMore}
+          loading={loading || loadingMore}
+          onLoadMore={loadMore}
+          endMessage=""
+        >
+          <SearchResults results={results} query={meta.query} tookMs={meta.tookMs} />
+        </InfiniteScroll>
+      )}
+      {!enabled && !loading && (
         <div className="text-center py-12 text-muted-foreground">
           <p className="text-lg mb-1">Ask anything</p>
-          <p className="text-sm">Search across everything you&apos;ve saved using natural language.</p>
+          <p className="text-sm">
+            Search across everything you&apos;ve saved using natural language.
+          </p>
         </div>
       )}
     </div>

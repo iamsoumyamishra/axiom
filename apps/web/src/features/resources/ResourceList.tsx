@@ -1,63 +1,64 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { apiGet } from '../../lib/api';
+import { useCursorFeed } from '../../lib/useCursorFeed';
+import { InfiniteScroll } from '../../components/InfiniteScroll';
 import { ResourceCard } from './ResourceCard';
 import { FilterBar } from './FilterBar';
-import { Pagination } from './Pagination';
-import type { ResourceListItem, ResourceFilters, PaginatedResponse } from './types';
+import type { ResourceListItem, ResourceFilters, ResourceListResponse } from './types';
 
 export function ResourceList() {
-  const [resources, setResources] = useState<ResourceListItem[]>([]);
-  const [meta, setMeta] = useState<PaginatedResponse<ResourceListItem>['meta'] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [filters, setFilters] = useState<ResourceFilters>({
     sortBy: 'savedAt',
     sortOrder: 'desc',
-    page: 1,
     pageSize: 20,
   });
 
-  const fetchResources = async (f: ResourceFilters) => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await apiGet<PaginatedResponse<ResourceListItem>>('resources', {
-        page: String(f.page ?? 1),
-        pageSize: String(f.pageSize ?? 20),
-        sortBy: f.sortBy,
-        sortOrder: f.sortOrder,
-        search: f.search,
-        category: f.category,
-        tag: f.tag,
-        projectId: f.projectId,
-        collectionId: f.collectionId,
-      });
-      if (res.success && res.data) {
-        setResources(res.data.data);
-        setMeta(res.data.meta);
-      } else {
-        setError(res.error?.message ?? 'Failed to load resources');
-      }
-    } catch {
-      setError('Network error');
-    } finally {
-      setLoading(false);
-    }
+  const params = {
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+    search: filters.search,
+    category: filters.category,
+    tag: filters.tag,
+    projectId: filters.projectId,
+    collectionId: filters.collectionId,
   };
 
-  useEffect(() => {
-    fetchResources(filters);
-  }, [filters]);
+  const { items: resources, meta, loading, loadingMore, error, loadMore } =
+    useCursorFeed<ResourceListItem>({
+      scopeKey: JSON.stringify({ path: 'resources', params }),
+      pageSize: filters.pageSize ?? 20,
+      fetcher: async (cursor, pageSize) => {
+        const res = await apiGet<ResourceListResponse>('resources', {
+          cursor,
+          pageSize: String(pageSize),
+          sortBy: params.sortBy,
+          sortOrder: params.sortOrder,
+          search: params.search,
+          category: params.category,
+          tag: params.tag,
+          projectId: params.projectId,
+          collectionId: params.collectionId,
+        });
+        if (!res.success || !res.data) {
+          throw new Error(res.error?.message ?? 'Failed to load resources');
+        }
+        return res.data;
+      },
+    });
 
   return (
     <div className="space-y-4">
       {meta && (
-        <FilterBar filters={filters} onFiltersChange={setFilters} total={meta.total} />
+        <FilterBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          total={meta.total ?? 0}
+        />
       )}
 
-      {loading && (
+      {loading && resources.length === 0 && (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="rounded-lg border p-4 space-y-3 animate-pulse">
@@ -81,20 +82,18 @@ export function ResourceList() {
         </div>
       )}
 
-      {!loading && resources.length > 0 && (
-        <div className="space-y-2">
-          {resources.map((r) => (
-            <ResourceCard key={r.id} resource={r} />
-          ))}
-        </div>
-      )}
-
-      {meta && (
-        <Pagination
-          page={meta.page}
-          totalPages={meta.totalPages}
-          onPageChange={(p) => setFilters((f) => ({ ...f, page: p }))}
-        />
+      {resources.length > 0 && (
+        <InfiniteScroll
+          hasMore={meta?.hasMore ?? false}
+          loading={loading || loadingMore}
+          onLoadMore={loadMore}
+        >
+          <div className="space-y-2">
+            {resources.map((r) => (
+              <ResourceCard key={r.id} resource={r} />
+            ))}
+          </div>
+        </InfiniteScroll>
       )}
     </div>
   );

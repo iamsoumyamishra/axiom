@@ -1,4 +1,5 @@
 import type { ResourceListItem } from '../resources/types';
+import type { CursorListResponse, CursorMeta } from '../../lib/cursor';
 
 export interface Project {
   id: string;
@@ -12,8 +13,10 @@ export interface Project {
 
 export interface ProjectDetail extends Project {
   resources: ResourceListItem[];
-  meta: { total: number; page: number; pageSize: number; totalPages: number };
+  meta: CursorMeta;
 }
+
+export type ProjectListResponse = CursorListResponse<Project>;
 
 export interface ProjectFormValues {
   name: string;

@@ -98,7 +98,7 @@ export class ResourcesService {
 
   async findAll(query: ResourceQueryDto, userId: string) {
     const {
-      page = 1,
+      cursor,
       pageSize = 20,
       search,
       category,
@@ -134,14 +134,23 @@ export class ResourcesService {
       where.collections = { some: { collectionId } };
     }
 
-    const orderBy: Prisma.ResourceOrderByWithRelationInput = { [sortBy]: sortOrder };
+    let cursorValid = false;
+    if (cursor) {
+      const existing = await this.prisma.resource.findFirst({
+        where: { id: cursor, userId },
+        select: { id: true },
+      });
+      cursorValid = Boolean(existing);
+    }
 
-    const [data, total] = await Promise.all([
+    const orderBy = [{ [sortBy]: sortOrder }, { id: sortOrder }] as Prisma.ResourceOrderByWithRelationInput[];
+
+    const [rows, total] = await Promise.all([
       this.prisma.resource.findMany({
         where,
         orderBy,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        ...(cursorValid ? { cursor: { id: cursor }, skip: 1 } : {}),
+        take: pageSize + 1,
         select: {
           id: true,
           url: true,
@@ -164,14 +173,13 @@ export class ResourcesService {
       this.prisma.resource.count({ where }),
     ]);
 
+    const hasMore = rows.length > pageSize;
+    const data = hasMore ? rows.slice(0, pageSize) : rows;
+    const nextCursor = hasMore ? data[data.length - 1]!.id : null;
+
     return {
       data,
-      meta: {
-        total,
-        page,
-        pageSize,
-        totalPages: Math.ceil(total / pageSize),
-      },
+      meta: { total, pageSize, nextCursor, hasMore },
     };
   }
 

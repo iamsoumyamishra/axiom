@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Layers, Plus, Sparkles } from 'lucide-react';
 import { apiGet, apiDelete } from '../../../../lib/api';
+import { useCursorFeed } from '../../../../lib/useCursorFeed';
+import { InfiniteScroll } from '../../../../components/InfiniteScroll';
 import { LinkResourcesDialog } from '../../../../features/resources/LinkResourcesDialog';
 import { Button } from '../../../../components/ui/button';
 import { cn } from '../../../../lib/utils';
 import type { CollectionDetail } from '../../../../features/collections/types';
+import type { ResourceListItem } from '../../../../features/resources/types';
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime();
@@ -35,42 +38,38 @@ export default function CollectionDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [collection, setCollection] = useState<CollectionDetail | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [addOpen, setAddOpen] = useState(false);
 
-  const fetchCollection = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await apiGet<CollectionDetail>(`collections/${params.id}`);
-      if (res.success && res.data) {
-        setCollection(res.data);
-      } else {
-        setError(res.error?.message ?? 'Collection not found');
-      }
-    } catch {
-      setError('Failed to load collection');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { items: resources, meta, loading, loadingMore, error: feedError, loadMore, refresh, removeItem } =
+    useCursorFeed<ResourceListItem>({
+      scopeKey: `collection:${params.id}`,
+      pageSize: 20,
+      enabled: Boolean(params.id),
+      fetcher: async (cursor, pageSize) => {
+        const res = await apiGet<CollectionDetail>(`collections/${params.id}`, {
+          cursor,
+          pageSize: String(pageSize),
+        });
+        if (!res.success || !res.data) {
+          throw new Error(res.error?.message ?? 'Collection not found');
+        }
+        if (!cursor) {
+          setCollection({ ...res.data, resources: [] });
+        }
+        return { data: res.data.resources, meta: res.data.meta };
+      },
+    });
 
-  useEffect(() => {
-    fetchCollection();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id]);
+  const loadError = error || feedError;
 
   const handleRemove = async (resourceId: string) => {
     const res = await apiDelete(`collections/${params.id}/resources/${resourceId}`);
     if (res.success) {
+      removeItem(resourceId);
       setCollection((c) =>
         c
-          ? {
-              ...c,
-              resources: c.resources.filter((r) => r.id !== resourceId),
-              _count: { resources: Math.max(0, c._count.resources - 1) },
-            }
+          ? { ...c, _count: { resources: Math.max(0, c._count.resources - 1) } }
           : c,
       );
     }
@@ -82,7 +81,7 @@ export default function CollectionDetailPage() {
     if (res.success) router.push('/collections');
   };
 
-  if (loading) {
+  if (loading && !collection) {
     return (
       <div className="space-y-4 animate-pulse">
         <div className="h-6 bg-secondary rounded w-1/3" />
@@ -92,10 +91,24 @@ export default function CollectionDetailPage() {
     );
   }
 
-  if (error || !collection) {
+  if (loadError && !collection) {
     return (
       <div className="text-center py-12">
-        <p className="text-lg text-destructive">{error ?? 'Collection not found'}</p>
+        <p className="text-lg text-destructive">{loadError}</p>
+        <button
+          onClick={() => router.push('/collections')}
+          className="text-sm text-primary underline mt-2"
+        >
+          Back to collections
+        </button>
+      </div>
+    );
+  }
+
+  if (!collection) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-lg text-destructive">Collection not found</p>
         <button
           onClick={() => router.push('/collections')}
           className="text-sm text-primary underline mt-2"
@@ -148,43 +161,55 @@ export default function CollectionDetailPage() {
         </div>
       </div>
 
-      {collection.resources.length === 0 ? (
+      {loadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
+
+      {!loading && !loadError && resources.length === 0 ? (
         <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
           No resources in this collection yet.
         </div>
       ) : (
-        <div className="space-y-2">
-          {collection.resources.map((r) => (
-            <div key={r.id} className="flex items-center gap-3 rounded-lg border px-4 py-3">
-              {r.url && (
-                <img
-                  src={`https://www.google.com/s2/favicons?domain=${getDomain(r.url)}&sz=32`}
-                  alt=""
-                  className="w-5 h-5 shrink-0 rounded"
-                />
-              )}
-              <a href={`/resources/${r.id}`} className="flex-1 min-w-0">
-                <p className="font-medium truncate hover:underline">{r.title ?? 'Untitled'}</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {getDomain(r.url) ?? 'No domain'} · {timeAgo(r.savedAt)}
-                </p>
-              </a>
-              <button
-                onClick={() => handleRemove(r.id)}
-                className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
+        <InfiniteScroll
+          hasMore={meta?.hasMore ?? false}
+          loading={loading || loadingMore}
+          onLoadMore={loadMore}
+        >
+          <div className="space-y-2">
+            {resources.map((r) => (
+              <div key={r.id} className="flex items-center gap-3 rounded-lg border px-4 py-3">
+                {r.url && (
+                  <img
+                    src={`https://www.google.com/s2/favicons?domain=${getDomain(r.url)}&sz=32`}
+                    alt=""
+                    className="w-5 h-5 shrink-0 rounded"
+                  />
+                )}
+                <a href={`/resources/${r.id}`} className="flex-1 min-w-0">
+                  <p className="font-medium truncate hover:underline">{r.title ?? 'Untitled'}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {getDomain(r.url) ?? 'No domain'} · {timeAgo(r.savedAt)}
+                  </p>
+                </a>
+                <button
+                  onClick={() => handleRemove(r.id)}
+                  className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        </InfiniteScroll>
       )}
 
       <LinkResourcesDialog
         open={addOpen}
         onOpenChange={setAddOpen}
         linkPath={`collections/${collection.id}`}
-        onAdded={fetchCollection}
+        onAdded={refresh}
       />
     </div>
   );

@@ -37,7 +37,7 @@ export function SaveResourceDialog({ open, onOpenChange, onSaved }: SaveResource
 
   useEffect(() => {
     if (!open) return;
-    apiGet<ProjectOption[]>('projects').then((res) => {
+    apiGet<ProjectOption[]>('projects/options').then((res) => {
       if (res.success && res.data) setProjects(res.data);
     });
   }, [open]);

@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Layers, Sparkles, RefreshCw } from 'lucide-react';
 import { apiGet, apiPost, apiDelete } from '../../lib/api';
+import { useCursorFeed } from '../../lib/useCursorFeed';
+import { InfiniteScroll } from '../../components/InfiniteScroll';
 import { CollectionFormDialog } from './CollectionFormDialog';
 import { Button } from '../../components/ui/button';
 import { cn } from '../../lib/utils';
-import type { Collection } from './types';
+import type { Collection, CollectionListResponse } from './types';
 
 function CollectionCard({
   collection,
@@ -52,47 +54,53 @@ function CollectionCard({
 
 export function CollectionsList() {
   const router = useRouter();
-  const [auto, setAuto] = useState<Collection[]>([]);
-  const [manual, setManual] = useState<Collection[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const fetchCollections = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await apiGet<{ auto: Collection[]; manual: Collection[] }>('collections');
-      if (res.success && res.data) {
-        setAuto(res.data.auto);
-        setManual(res.data.manual);
-      } else {
-        setError(res.error?.message ?? 'Failed to load collections');
+  const autoFeed = useCursorFeed<Collection>({
+    scopeKey: 'collections:auto',
+    pageSize: 20,
+    fetcher: async (cursor, pageSize) => {
+      const res = await apiGet<CollectionListResponse>('collections', {
+        type: 'auto',
+        cursor,
+        pageSize: String(pageSize),
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? 'Failed to load collections');
       }
-    } catch {
-      setError('Network error');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return res.data;
+    },
+  });
 
-  useEffect(() => {
-    fetchCollections();
-  }, []);
+  const manualFeed = useCursorFeed<Collection>({
+    scopeKey: 'collections:manual',
+    pageSize: 20,
+    fetcher: async (cursor, pageSize) => {
+      const res = await apiGet<CollectionListResponse>('collections', {
+        type: 'manual',
+        cursor,
+        pageSize: String(pageSize),
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? 'Failed to load collections');
+      }
+      return res.data;
+    },
+  });
+
+  const loading = autoFeed.loading || manualFeed.loading;
+  const error = autoFeed.error || manualFeed.error;
 
   const handleSync = async () => {
     setSyncing(true);
-    setError('');
     try {
       const res = await apiPost<{ synced: number }>('collections/sync');
-      if (res.success) {
-        await fetchCollections();
-      } else {
-        setError(res.error?.message ?? 'Sync failed');
-      }
+      if (!res.success) return;
+      autoFeed.refresh();
+      manualFeed.refresh();
     } catch {
-      setError('Sync failed');
+      // ignore
     } finally {
       setSyncing(false);
     }
@@ -102,9 +110,12 @@ export function CollectionsList() {
     if (!confirm(`Delete collection "${collection.name}"?`)) return;
     const res = await apiDelete(`collections/${collection.id}`);
     if (res.success) {
-      setManual((m) => m.filter((c) => c.id !== collection.id));
+      manualFeed.removeItem(collection.id);
     }
   };
+
+  const auto = autoFeed.items;
+  const manual = manualFeed.items;
 
   return (
     <div className="space-y-6">
@@ -127,7 +138,7 @@ export function CollectionsList() {
         </div>
       )}
 
-      {loading && (
+      {loading && auto.length === 0 && manual.length === 0 && (
         <div className="space-y-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -138,9 +149,14 @@ export function CollectionsList() {
       )}
 
       {!loading && (
-        <>
-          <section>
-            <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
+        <InfiniteScroll
+          hasMore={autoFeed.meta?.hasMore ?? false}
+          loading={autoFeed.loading || autoFeed.loadingMore}
+          onLoadMore={autoFeed.loadMore}
+          endMessage={auto.length > 0 ? undefined : ''}
+        >
+          <section className="space-y-3">
+            <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Sparkles className="h-4 w-4 text-violet-500" /> Auto-generated from AI tags
             </h3>
             {auto.length === 0 ? (
@@ -156,9 +172,18 @@ export function CollectionsList() {
               </div>
             )}
           </section>
+        </InfiniteScroll>
+      )}
 
-          <section>
-            <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
+      {!loading && (
+        <InfiniteScroll
+          hasMore={manualFeed.meta?.hasMore ?? false}
+          loading={manualFeed.loading || manualFeed.loadingMore}
+          onLoadMore={manualFeed.loadMore}
+          endMessage={manual.length > 0 ? undefined : ''}
+        >
+          <section className="space-y-3">
+            <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Layers className="h-4 w-4 text-primary" /> Manual
             </h3>
             {manual.length === 0 ? (
@@ -173,13 +198,16 @@ export function CollectionsList() {
               </div>
             )}
           </section>
-        </>
+        </InfiniteScroll>
       )}
 
       <CollectionFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onSaved={fetchCollections}
+        onSaved={() => {
+          manualFeed.refresh();
+          autoFeed.refresh();
+        }}
       />
     </div>
   );

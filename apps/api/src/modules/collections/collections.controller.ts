@@ -24,9 +24,26 @@ export class CollectionsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List collections (grouped auto/manual)' })
-  async findAll(@CurrentUser() user: { sub: string }) {
-    return this.collectionsService.findAll(user.sub);
+  @ApiOperation({ summary: 'List collections by type (cursor paginated)' })
+  async findAll(
+    @CurrentUser() user: { sub: string },
+    @Query('type') type?: string,
+    @Query('cursor') cursor?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const t = type === 'manual' ? 'manual' : 'auto';
+    return this.collectionsService.findAll(
+      user.sub,
+      t,
+      cursor,
+      Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20)),
+    );
+  }
+
+  @Get('options')
+  @ApiOperation({ summary: 'All collections as lightweight options (dropdowns)' })
+  async findOptions(@CurrentUser() user: { sub: string }) {
+    return this.collectionsService.findOptions(user.sub);
   }
 
   @Post('sync')
@@ -40,13 +57,13 @@ export class CollectionsController {
   async findById(
     @CurrentUser() user: { sub: string },
     @Param('id') id: string,
-    @Query('page') page?: string,
+    @Query('cursor') cursor?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     return this.collectionsService.findById(
       id,
       user.sub,
-      Math.max(1, parseInt(page ?? '1', 10) || 1),
+      cursor,
       Math.min(100, Math.max(1, parseInt(pageSize ?? '50', 10) || 50)),
     );
   }

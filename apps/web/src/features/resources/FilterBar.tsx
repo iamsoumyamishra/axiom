@@ -28,18 +28,16 @@ export function FilterBar({ filters, onFiltersChange, total }: FilterBarProps) {
   const [collections, setCollections] = useState<CollectionOption[]>([]);
 
   useEffect(() => {
-    apiGet<ProjectOption[]>('projects').then((res) => {
+    apiGet<ProjectOption[]>('projects/options').then((res) => {
       if (res.success && res.data) setProjects(res.data);
     });
-    apiGet<{ auto: CollectionOption[]; manual: CollectionOption[] }>('collections').then((res) => {
-      if (res.success && res.data) {
-        setCollections([...res.data.auto, ...res.data.manual]);
-      }
+    apiGet<CollectionOption[]>('collections/options').then((res) => {
+      if (res.success && res.data) setCollections(res.data);
     });
   }, []);
 
   const update = (patch: Partial<ResourceFilters>) => {
-    onFiltersChange({ ...filters, ...patch, page: 1 });
+    onFiltersChange({ ...filters, ...patch });
   };
 
   const handleSearch = (e: React.FormEvent) => {

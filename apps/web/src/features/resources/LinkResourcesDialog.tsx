@@ -13,7 +13,7 @@ import {
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { apiGet, apiPost } from '../../lib/api';
-import type { ResourceListItem, PaginatedResponse } from '../resources/types';
+import type { ResourceListItem, ResourceListResponse } from '../resources/types';
 
 interface LinkResourcesDialogProps {
   open: boolean;
@@ -47,7 +47,7 @@ export function LinkResourcesDialog({
       setLoading(true);
       setError('');
       try {
-        const res = await apiGet<PaginatedResponse<ResourceListItem>>('resources', {
+        const res = await apiGet<ResourceListResponse>('resources', {
           pageSize: '100',
         });
         if (res.success && res.data) {
