@@ -1,7 +1,12 @@
 'use client';
 
+import { useState } from 'react';
+import Link from 'next/link';
+import { toast } from 'sonner';
+import { Loader2, RotateCcw } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import type { ResourceListItem } from './types';
+import { apiPost } from '../../lib/api';
+import type { ResourceDetail, ResourceListItem } from './types';
 
 const statusStyles: Record<string, string> = {
   COMPLETED: 'bg-emerald-100 text-emerald-700',
@@ -33,12 +38,36 @@ function timeAgo(date: string) {
   return `${months}mo ago`;
 }
 
-export function ResourceCard({ resource }: { resource: ResourceListItem }) {
+export function ResourceCard({
+  resource,
+  onRetried,
+}: {
+  resource: ResourceListItem;
+  onRetried?: (id: string) => void;
+}) {
+  const [retrying, setRetrying] = useState(false);
+
+  const handleRetry = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      const res = await apiPost<ResourceDetail>(`resources/${resource.id}/retry`);
+      if (res.success) {
+        toast.success('Retrying…');
+        onRetried?.(resource.id);
+      } else {
+        toast.error(res.error?.message ?? 'Failed to retry');
+      }
+    } catch {
+      toast.error('Network error');
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   return (
-    <a
-      href={`/resources/${resource.id}`}
-      className="block rounded-lg border p-4 hover:border-primary/50 hover:shadow-sm transition-all"
-    >
+    <div className="rounded-lg border p-4 hover:border-primary/50 hover:shadow-sm transition-all">
       <div className="flex items-start gap-3">
         {resource.url && (
           <img
@@ -49,16 +78,33 @@ export function ResourceCard({ resource }: { resource: ResourceListItem }) {
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-medium truncate">
+            <Link href={`/resources/${resource.id}`} className="font-medium truncate hover:underline">
               {resource.title ?? 'Untitled'}
-            </h3>
+            </Link>
             {resource.status !== 'COMPLETED' && (
-              <span className={cn(
-                'text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0',
-                statusStyles[resource.status] ?? 'bg-slate-100 text-slate-600',
-              )}>
+              <span
+                className={cn(
+                  'text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0',
+                  statusStyles[resource.status] ?? 'bg-slate-100 text-slate-600',
+                )}
+              >
                 {resource.status}
               </span>
+            )}
+            {resource.status === 'FAILED' && (
+              <button
+                onClick={handleRetry}
+                disabled={retrying}
+                className="shrink-0 inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-input text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors disabled:opacity-50"
+                title="Retry failed pipeline"
+              >
+                {retrying ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-3 w-3" />
+                )}
+                Retry
+              </button>
             )}
           </div>
           {resource.description && (
@@ -117,6 +163,6 @@ export function ResourceCard({ resource }: { resource: ResourceListItem }) {
           )}
         </div>
       </div>
-    </a>
+    </div>
   );
 }

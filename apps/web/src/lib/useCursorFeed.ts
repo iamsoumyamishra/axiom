@@ -102,5 +102,9 @@ export function useCursorFeed<T extends { id: string }, M extends CursorMeta = C
     });
   }, []);
 
-  return { items, meta, loading, loadingMore, error, loadMore, refresh, removeItem };
+  const updateItem = useCallback((id: string, patch: Partial<T>) => {
+    setItems((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  }, []);
+
+  return { items, meta, loading, loadingMore, error, loadMore, refresh, removeItem, updateItem };
 }

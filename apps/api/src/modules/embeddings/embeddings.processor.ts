@@ -31,30 +31,44 @@ export class EmbeddingsProcessor extends WorkerHost {
       throw new Error(`Resource ${resourceId} not found`);
     }
 
-    const cleanText = resource.content?.cleanText ?? resource.content?.markdown ?? null;
-    if (!cleanText) {
-      this.logger.warn(`No content to embed for resource ${resourceId}`);
-      return;
-    }
-
-    const { dimensions, model } = await this.embeddingsService.generateAndStore(resourceId, cleanText);
-
-    this.logger.log(`Embeddings generated for resource ${resourceId} (${model}, ${dimensions} dims)`);
-
-    const dedupResult = await this.dedupService.checkSemanticDuplicate(resourceId, resource.userId);
-
-    if (dedupResult?.action === 'duplicate') {
-      this.logger.log(`Resource ${resourceId} is a duplicate of ${dedupResult.duplicateOf}`);
-    } else if (dedupResult?.action === 'flag') {
-      this.logger.log(`Resource ${resourceId} may be similar to ${dedupResult.duplicateOf} (confidence: ${dedupResult.confidence.toFixed(4)})`);
-    }
-
     try {
-      await this.relationshipsService.refreshSimilarRelationships(resourceId, resource.userId);
+      const cleanText = resource.content?.cleanText ?? resource.content?.markdown ?? null;
+      if (!cleanText) {
+        this.logger.warn(`No content to embed for resource ${resourceId}`);
+        return;
+      }
+
+      const { dimensions, model } = await this.embeddingsService.generateAndStore(resourceId, cleanText);
+
+      this.logger.log(`Embeddings generated for resource ${resourceId} (${model}, ${dimensions} dims)`);
+
+      const dedupResult = await this.dedupService.checkSemanticDuplicate(resourceId, resource.userId);
+
+      if (dedupResult?.action === 'duplicate') {
+        this.logger.log(`Resource ${resourceId} is a duplicate of ${dedupResult.duplicateOf}`);
+      } else if (dedupResult?.action === 'flag') {
+        this.logger.log(`Resource ${resourceId} may be similar to ${dedupResult.duplicateOf} (confidence: ${dedupResult.confidence.toFixed(4)})`);
+      }
+
+      try {
+        await this.relationshipsService.refreshSimilarRelationships(resourceId, resource.userId);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to generate relationships for resource ${resourceId}: ${(error as Error).message}`,
+        );
+      }
+
+      await this.prisma.resource.updateMany({
+        where: { id: resourceId, status: { not: 'DUPLICATE' } },
+        data: { status: 'COMPLETED' },
+      });
     } catch (error) {
-      this.logger.warn(
-        `Failed to generate relationships for resource ${resourceId}: ${(error as Error).message}`,
-      );
+      this.logger.error(`Embeddings failed for resource ${resourceId}: ${(error as Error).message}`);
+      await this.prisma.resource.updateMany({
+        where: { id: resourceId, status: { not: 'DUPLICATE' } },
+        data: { status: 'FAILED' },
+      });
+      throw error;
     }
   }
 

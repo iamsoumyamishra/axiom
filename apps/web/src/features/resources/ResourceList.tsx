@@ -25,7 +25,7 @@ export function ResourceList() {
     collectionId: filters.collectionId,
   };
 
-  const { items: resources, meta, loading, loadingMore, error, loadMore } =
+  const { items: resources, meta, loading, loadingMore, error, loadMore, updateItem } =
     useCursorFeed<ResourceListItem>({
       scopeKey: JSON.stringify({ path: 'resources', params }),
       pageSize: filters.pageSize ?? 20,
@@ -90,7 +90,11 @@ export function ResourceList() {
         >
           <div className="space-y-2">
             {resources.map((r) => (
-              <ResourceCard key={r.id} resource={r} />
+              <ResourceCard
+                key={r.id}
+                resource={r}
+                onRetried={(id) => updateItem(id, { status: 'PROCESSING' })}
+              />
             ))}
           </div>
         </InfiniteScroll>

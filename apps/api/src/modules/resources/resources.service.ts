@@ -13,6 +13,8 @@ export class ResourcesService {
 
   constructor(
     @InjectQueue('extraction') private readonly extractionQueue: Queue,
+    @InjectQueue('ai-analysis') private readonly aiAnalysisQueue: Queue,
+    @InjectQueue('embeddings') private readonly embeddingsQueue: Queue,
     private readonly dedupService: DeduplicationService,
   ) {}
 
@@ -461,6 +463,59 @@ export class ResourcesService {
     this.logger.log(`Merged resource ${duplicateId} into ${canonicalId}`);
 
     return this.findById(canonicalId, userId);
+  }
+
+  async retry(id: string, userId: string) {
+    const resource = await this.prisma.resource.findFirst({
+      where: { id, userId },
+      include: {
+        content: { select: { id: true, cleanText: true, markdown: true } },
+        aiAnalysis: { select: { id: true, reasoning: true } },
+        embedding: { select: { id: true } },
+      },
+    });
+
+    if (!resource) {
+      throw new NotFoundException('Resource not found');
+    }
+    if (resource.status !== 'FAILED') {
+      throw new BadRequestException('Resource is not in a failed state');
+    }
+
+    const hasContent = Boolean(resource.content?.cleanText ?? resource.content?.markdown);
+    const analysisFailed =
+      !resource.aiAnalysis || (resource.aiAnalysis.reasoning ?? '').startsWith('FAILED');
+    const hasEmbedding = Boolean(resource.embedding);
+
+    let queue: Queue | undefined;
+    let jobName: string | undefined;
+
+    if (hasContent) {
+      if (analysisFailed) {
+        queue = this.aiAnalysisQueue;
+        jobName = 'analyze';
+      } else if (!hasEmbedding) {
+        queue = this.embeddingsQueue;
+        jobName = 'embeddings';
+      }
+    } else if (resource.url) {
+      queue = this.extractionQueue;
+      jobName = 'extract';
+    }
+
+    if (!queue || !jobName) {
+      throw new BadRequestException('Nothing to retry');
+    }
+
+    await this.prisma.resource.update({
+      where: { id },
+      data: { status: 'PROCESSING' },
+    });
+
+    await queue.add(jobName, { resourceId: id });
+    this.logger.log(`Retried resource ${id} (queued ${jobName})`);
+
+    return this.findById(id, userId);
   }
 
   async update(id: string, dto: UpdateResourceDto, userId: string) {

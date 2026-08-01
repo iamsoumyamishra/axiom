@@ -92,6 +92,11 @@ export class AiAnalysisProcessor extends WorkerHost {
 
       this.logger.log(`AI analysis completed for resource ${resourceId} (${provider}/${model})`);
 
+      await this.prisma.resource.updateMany({
+        where: { id: resourceId, status: { not: 'DUPLICATE' } },
+        data: { status: 'COMPLETED' },
+      });
+
       try {
         await this.collectionsService.syncResourceCollections(resourceId, resource.userId, result.tags);
       } catch (error) {
@@ -120,6 +125,11 @@ export class AiAnalysisProcessor extends WorkerHost {
         update: {
           reasoning: `FAILED: ${errorMessage}`,
         },
+      });
+
+      await this.prisma.resource.updateMany({
+        where: { id: resourceId, status: { not: 'DUPLICATE' } },
+        data: { status: 'FAILED' },
       });
 
       throw error;

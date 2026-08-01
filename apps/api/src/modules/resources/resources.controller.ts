@@ -59,6 +59,15 @@ export class ResourcesController {
     return this.resourcesService.findById(id, user.sub);
   }
 
+  @Post(':id/retry')
+  @ApiOperation({ summary: 'Retry a failed resource pipeline' })
+  async retry(
+    @Param('id') id: string,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.resourcesService.retry(id, user.sub);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Update a resource' })
   async update(

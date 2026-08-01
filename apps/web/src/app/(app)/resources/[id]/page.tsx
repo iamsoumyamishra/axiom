@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Loader2, User, Calendar, Globe } from 'lucide-react';
-import { apiGet, apiDelete } from '../../../../lib/api';
+import { ArrowLeft, ExternalLink, Loader2, RotateCcw, User, Calendar, Globe } from 'lucide-react';
+import { apiGet, apiDelete, apiPost } from '../../../../lib/api';
 import { cn } from '../../../../lib/utils';
 import type { ResourceDetail } from '../../../../features/resources/types';
 import RelatedResources from '../../../../features/resources/RelatedResources';
@@ -85,6 +85,23 @@ export default function ResourceDetailPage() {
     if (res.success) router.push('/resources');
   };
 
+  const [retrying, setRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    if (retrying || !resource) return;
+    setRetrying(true);
+    try {
+      const res = await apiPost<ResourceDetail>(`resources/${resource.id}/retry`);
+      if (res.success) {
+        setResource({ ...resource, status: 'PROCESSING' });
+      }
+    } catch {
+      // ignore; status poll will reflect reality
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   if (loading && !resource) {
     return (
       <div className="space-y-4 animate-pulse">
@@ -145,12 +162,28 @@ export default function ResourceDetailPage() {
               </a>
             )}
           </div>
-          <button
-            onClick={handleDelete}
-            className="shrink-0 text-sm text-destructive hover:underline"
-          >
-            Delete
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {resource.status === 'FAILED' && (
+              <button
+                onClick={handleRetry}
+                disabled={retrying}
+                className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                {retrying ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-3.5 w-3.5" />
+                )}
+                Retry
+              </button>
+            )}
+            <button
+              onClick={handleDelete}
+              className="text-sm text-destructive hover:underline"
+            >
+              Delete
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
