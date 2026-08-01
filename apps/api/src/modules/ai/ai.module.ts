@@ -13,7 +13,13 @@ import {
 
 @Module({
   imports: [
-    BullModule.registerQueue({ name: 'ai-analysis' }),
+    BullModule.registerQueue({
+      name: 'ai-analysis',
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+      },
+    }),
     CollectionsModule,
   ],
   providers: [

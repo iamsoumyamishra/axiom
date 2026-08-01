@@ -95,6 +95,8 @@ export class OpenAiCompatibleProvider implements LlmProvider {
         }
         break;
       }
+      case 413:
+        return new LlmError(message, LlmErrorType.TOKEN_LIMIT_EXCEEDED, { status: 413, body });
       case 402:
       case 403: {
         const isQuota =

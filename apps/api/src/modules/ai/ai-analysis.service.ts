@@ -11,7 +11,7 @@ import {
 } from './tokens';
 
 const MAX_CONTENT_CHARS = 80_000;
-const RETRY_TRUNCATION_CHARS = 30_000;
+const RETRY_TRUNCATION_CHARS = 15_000;
 
 @Injectable()
 export class AiAnalysisService {
