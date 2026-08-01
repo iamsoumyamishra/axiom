@@ -37,3 +37,12 @@ export const updateResourceSchema = z.object({
   tags: z.array(z.string().max(50)).max(50).optional(),
   metadata: z.record(z.unknown()).optional(),
 });
+
+export const mergeResourceSchema = z
+  .object({
+    duplicateId: z.string().min(1),
+    canonicalId: z.string().min(1),
+  })
+  .refine((dto) => dto.duplicateId !== dto.canonicalId, {
+    message: 'duplicateId and canonicalId must be different',
+  });

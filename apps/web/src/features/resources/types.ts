@@ -67,6 +67,28 @@ export interface ResourceFilters {
 
 export type ResourceListResponse = CursorListResponse<ResourceListItem>;
 
+export interface MergeSuggestionCandidate {
+  id: string;
+  title: string | null;
+  url: string | null;
+  savedAt: string;
+  status: ResourceStatus;
+}
+
+export interface MergeSuggestion {
+  id: string;
+  duplicate: ResourceListItem;
+  candidate: MergeSuggestionCandidate | null;
+  confidence: number | null;
+}
+
+export type MergeSuggestionListResponse = CursorListResponse<MergeSuggestion>;
+
+export interface MergeRequest {
+  duplicateId: string;
+  canonicalId: string;
+}
+
 export interface RelatedResource {
   relationshipId: string;
   resource: {

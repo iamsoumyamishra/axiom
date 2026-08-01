@@ -35,3 +35,8 @@ export interface UpdateResourceDto {
   tags?: string[];
   metadata?: Record<string, unknown>;
 }
+
+export interface MergeResourceDto {
+  duplicateId: string;
+  canonicalId: string;
+}

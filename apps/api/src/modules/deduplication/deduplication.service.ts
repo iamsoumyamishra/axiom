@@ -146,9 +146,11 @@ export class DeduplicationService {
         where: { resourceId },
         create: {
           resourceId,
+          duplicateOf: matchId,
           duplicateConfidence: confidence,
         },
         update: {
+          duplicateOf: matchId,
           duplicateConfidence: confidence,
         },
       });

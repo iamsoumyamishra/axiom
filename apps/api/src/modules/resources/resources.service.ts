@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { getPrisma } from '@axiom/data';
@@ -207,6 +207,260 @@ export class ResourcesService {
     }
 
     return resource;
+  }
+
+  async findSuggestions(query: ResourceQueryDto, userId: string) {
+    const { cursor, pageSize = 20 } = query;
+
+    const where: Prisma.ResourceWhereInput = {
+      userId,
+      aiAnalysis: { duplicateOf: { not: null } },
+    };
+
+    let cursorValid = false;
+    if (cursor) {
+      const existing = await this.prisma.resource.findFirst({
+        where: { id: cursor, userId, aiAnalysis: { duplicateOf: { not: null } } },
+        select: { id: true },
+      });
+      cursorValid = Boolean(existing);
+    }
+
+    const orderBy = [{ savedAt: 'desc' }, { id: 'desc' }] as Prisma.ResourceOrderByWithRelationInput[];
+
+    const [rows, total] = await Promise.all([
+      this.prisma.resource.findMany({
+        where,
+        orderBy,
+        ...(cursorValid ? { cursor: { id: cursor }, skip: 1 } : {}),
+        take: pageSize + 1,
+        select: {
+          id: true,
+          url: true,
+          title: true,
+          description: true,
+          resourceType: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          savedAt: true,
+          aiAnalysis: { select: { duplicateOf: true, duplicateConfidence: true } },
+          tags: { include: { tag: { select: { id: true, name: true } } } },
+          projects: {
+            include: { project: { select: { id: true, name: true, color: true } } },
+          },
+          collections: {
+            include: { collection: { select: { id: true, name: true, isAuto: true } } },
+          },
+        },
+      }),
+      this.prisma.resource.count({ where }),
+    ]);
+
+    const hasMore = rows.length > pageSize;
+    const page = hasMore ? rows.slice(0, pageSize) : rows;
+    const nextCursor = hasMore ? page[page.length - 1]!.id : null;
+
+    const candidateIds = [
+      ...new Set(
+        page
+          .map((r) => r.aiAnalysis?.duplicateOf)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+
+    const candidates = candidateIds.length
+      ? await this.prisma.resource.findMany({
+          where: { id: { in: candidateIds }, userId },
+          select: { id: true, title: true, url: true, savedAt: true, status: true },
+        })
+      : [];
+
+    const candidateMap = new Map(candidates.map((c) => [c.id, c]));
+
+    const data = page.map((r) => ({
+      duplicate: {
+        id: r.id,
+        url: r.url,
+        title: r.title,
+        description: r.description,
+        resourceType: r.resourceType,
+        status: r.status,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+        savedAt: r.savedAt,
+        tags: r.tags,
+        projects: r.projects,
+        collections: r.collections,
+      },
+      candidate: candidateMap.get(r.aiAnalysis?.duplicateOf ?? ''),
+      confidence: r.aiAnalysis?.duplicateConfidence ?? null,
+    }));
+
+    return {
+      data,
+      meta: { total, pageSize, nextCursor, hasMore },
+    };
+  }
+
+  async merge(duplicateId: string, canonicalId: string, userId: string) {
+    const duplicate = await this.prisma.resource.findFirst({
+      where: { id: duplicateId, userId },
+      include: { content: true, aiAnalysis: true, embedding: { select: { id: true } } },
+    });
+    const canonical = await this.prisma.resource.findFirst({
+      where: { id: canonicalId, userId },
+      include: {
+        content: { select: { id: true } },
+        aiAnalysis: { select: { id: true } },
+        embedding: { select: { id: true } },
+      },
+    });
+
+    if (!duplicate || !canonical) {
+      throw new NotFoundException('Resource not found');
+    }
+    if (duplicate.id === canonical.id) {
+      throw new BadRequestException('Cannot merge a resource with itself');
+    }
+    if (canonical.status === 'DUPLICATE') {
+      throw new BadRequestException('The canonical resource must not be marked as a duplicate');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.resource.update({
+        where: { id: canonicalId },
+        data: {
+          url: canonical.url ?? duplicate.url,
+          title: canonical.title ?? duplicate.title,
+          description: canonical.description ?? duplicate.description,
+          ...(canonical.resourceType === 'website' && duplicate.resourceType !== 'website'
+            ? { resourceType: duplicate.resourceType }
+            : {}),
+          ...(canonical.metadata == null && duplicate.metadata != null
+            ? { metadata: duplicate.metadata as Prisma.InputJsonValue }
+            : {}),
+        },
+      });
+
+      if (duplicate.content && !canonical.content) {
+        await tx.resourceContent.update({
+          where: { id: duplicate.content.id },
+          data: { resourceId: canonicalId },
+        });
+      }
+
+      if (duplicate.aiAnalysis) {
+        if (!canonical.aiAnalysis) {
+          await tx.aIAnalysis.update({
+            where: { id: duplicate.aiAnalysis.id },
+            data: { resourceId: canonicalId, duplicateOf: null, duplicateConfidence: null },
+          });
+        } else {
+          await tx.aIAnalysis.delete({ where: { id: duplicate.aiAnalysis.id } });
+        }
+      }
+
+      if (duplicate.embedding && !canonical.embedding) {
+        await tx.embedding.update({
+          where: { id: duplicate.embedding.id },
+          data: { resourceId: canonicalId },
+        });
+      }
+
+      const [dupProjects, dupCollections, dupTags, dupEntities] = await Promise.all([
+        tx.resourceProject.findMany({ where: { resourceId: duplicateId }, select: { projectId: true } }),
+        tx.resourceCollection.findMany({ where: { resourceId: duplicateId }, select: { collectionId: true } }),
+        tx.resourceTag.findMany({ where: { resourceId: duplicateId }, select: { tagId: true } }),
+        tx.resourceEntity.findMany({ where: { resourceId: duplicateId }, select: { entityId: true } }),
+      ]);
+
+      for (const { projectId } of dupProjects) {
+        await tx.resourceProject.upsert({
+          where: { resourceId_projectId: { resourceId: canonicalId, projectId } },
+          update: {},
+          create: { resourceId: canonicalId, projectId },
+        });
+      }
+      for (const { collectionId } of dupCollections) {
+        await tx.resourceCollection.upsert({
+          where: { resourceId_collectionId: { resourceId: canonicalId, collectionId } },
+          update: {},
+          create: { resourceId: canonicalId, collectionId },
+        });
+      }
+      for (const { tagId } of dupTags) {
+        await tx.resourceTag.upsert({
+          where: { resourceId_tagId: { resourceId: canonicalId, tagId } },
+          update: {},
+          create: { resourceId: canonicalId, tagId },
+        });
+      }
+      for (const { entityId } of dupEntities) {
+        await tx.resourceEntity.upsert({
+          where: { resourceId_entityId: { resourceId: canonicalId, entityId } },
+          update: {},
+          create: { resourceId: canonicalId, entityId },
+        });
+      }
+
+      const rels = await tx.relationship.findMany({
+        where: { OR: [{ sourceId: duplicateId }, { targetId: duplicateId }] },
+        select: { id: true, sourceId: true, targetId: true, type: true, confidence: true },
+      });
+
+      for (const rel of rels) {
+        const source = rel.sourceId === duplicateId ? canonicalId : rel.sourceId;
+        const target = rel.targetId === duplicateId ? canonicalId : rel.targetId;
+        const [a, b] = [source, target].sort() as [string, string];
+
+        if (a === b) {
+          await tx.relationship.delete({ where: { id: rel.id } });
+          continue;
+        }
+
+        const existing = await tx.relationship.findUnique({
+          where: { sourceId_targetId_type: { sourceId: a, targetId: b, type: rel.type } },
+        });
+
+        if (existing && existing.id !== rel.id) {
+          const confidence = Math.max(existing.confidence ?? 0, rel.confidence ?? 0);
+          await tx.relationship.delete({ where: { id: rel.id } });
+          if (confidence !== existing.confidence) {
+            await tx.relationship.update({
+              where: { id: existing.id },
+              data: { confidence },
+            });
+          }
+        } else {
+          await tx.relationship.update({
+            where: { id: rel.id },
+            data: { sourceId: a, targetId: b },
+          });
+        }
+      }
+
+      await tx.snapshot.updateMany({
+        where: { resourceId: duplicateId },
+        data: { resourceId: canonicalId },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: 'MERGE',
+          entityType: 'Resource',
+          entityId: canonicalId,
+          metadata: { duplicateId },
+        },
+      });
+
+      await tx.resource.delete({ where: { id: duplicateId } });
+    });
+
+    this.logger.log(`Merged resource ${duplicateId} into ${canonicalId}`);
+
+    return this.findById(canonicalId, userId);
   }
 
   async update(id: string, dto: UpdateResourceDto, userId: string) {

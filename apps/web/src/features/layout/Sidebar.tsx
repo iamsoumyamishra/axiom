@@ -8,6 +8,7 @@ import {
   Search,
   FolderKanban,
   Layers,
+  GitMerge,
   Plus,
   LogOut,
   X,
@@ -18,6 +19,7 @@ const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/resources', label: 'Resources', icon: BookMarked },
   { href: '/search', label: 'Search', icon: Search },
+  { href: '/duplicates', label: 'Duplicates', icon: GitMerge },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/collections', label: 'Collections', icon: Layers },
 ];

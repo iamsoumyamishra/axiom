@@ -4,8 +4,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ResourcesService } from './resources.service';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { saveResourceSchema, resourceQuerySchema, updateResourceSchema } from '@axiom/shared';
-import type { SaveResourceDto, ResourceQueryDto, UpdateResourceDto } from '@axiom/shared';
+import { saveResourceSchema, resourceQuerySchema, updateResourceSchema, mergeResourceSchema } from '@axiom/shared';
+import type { SaveResourceDto, ResourceQueryDto, UpdateResourceDto, MergeResourceDto } from '@axiom/shared';
 
 @ApiTags('Resources')
 @ApiBearerAuth()
@@ -30,6 +30,24 @@ export class ResourcesController {
     @CurrentUser() user: { sub: string },
   ) {
     return this.resourcesService.findAll(query, user.sub);
+  }
+
+  @Get('suggestions')
+  @ApiOperation({ summary: 'List merge suggestions with cursor pagination' })
+  async findSuggestions(
+    @Query(new ZodValidationPipe(resourceQuerySchema)) query: ResourceQueryDto,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.resourcesService.findSuggestions(query, user.sub);
+  }
+
+  @Post('merge')
+  @ApiOperation({ summary: 'Merge a duplicate resource into a canonical one' })
+  async merge(
+    @Body(new ZodValidationPipe(mergeResourceSchema)) dto: MergeResourceDto,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.resourcesService.merge(dto.duplicateId, dto.canonicalId, user.sub);
   }
 
   @Get(':id')
