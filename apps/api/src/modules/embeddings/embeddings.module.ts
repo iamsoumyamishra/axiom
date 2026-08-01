@@ -5,6 +5,7 @@ import { EmbeddingsService } from './embeddings.service';
 import { EmbeddingsProcessor } from './embeddings.processor';
 import { createEmbeddingProvider } from './providers/provider-registry';
 import { DeduplicationService } from '../deduplication/deduplication.service';
+import { RelationshipsModule } from '../relationships/relationships.module';
 import type { EmbeddingProviderConfig } from './providers/provider-registry';
 
 export function embeddingProviderFactory(configService: ConfigService) {
@@ -21,7 +22,7 @@ export function embeddingProviderFactory(configService: ConfigService) {
 
 @Global()
 @Module({
-  imports: [BullModule.registerQueue({ name: 'embeddings' })],
+  imports: [BullModule.registerQueue({ name: 'embeddings' }), RelationshipsModule],
   providers: [
     {
       provide: 'EMBEDDING_PROVIDER',

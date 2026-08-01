@@ -690,9 +690,20 @@ If the answer is no, reconsider the design.
 - HNSW index: `idx_embedding_hnsw` on `vector` using `vector_cosine_ops` with `m=16, ef_construction=200`.
 
 ## Search (2026-07-30)
-- Hybrid: vector search (pgvector `<->`) with text-only fallback.
+- Hybrid: vector search (pgvector `<=>` cosine distance) with text-only fallback.
+- **Pitfall (2026-08-01)**: pgvector's `<->` is **L2** distance, `<#>` is negative inner product, `<=>` is **cosine**. The HNSW index uses `vector_cosine_ops`, which is only usable by `<=>`. Search, dedup, and relationships must all use `<=>` — L2 produced wrong neighbors and silently bypassed the index.
 - Text fallback: `to_tsvector('english')` + `ILIKE` on title.
 - **Important**: The search controller must use `@CurrentUser() user: { sub: string }` (not `@Req() req.user.userId`). JWT strategy returns `{ sub, email }` — `sub` is the user ID.
+
+## Knowledge Graph / Relationships (2026-08-01)
+**v1 vector-only `similar` relationships — WORKING:**
+1. After embedding, `EmbeddingsProcessor` calls `RelationshipsService.refreshSimilarRelationships(resourceId, userId)` (try/catch, never fails the job).
+2. Neighbor query: same-user, non-DUPLICATE resources within cosine distance `< 0.6` (`SIMILAR_MAX_DISTANCE`), top 5 (`MAX_NEIGHBORS`).
+3. Canonical storage: pairs sorted lexically so `sourceId` is the lower id; `@@unique([sourceId, targetId, type])`; upsert key `sourceId_targetId_type`. Confidence `= 1 - distance`.
+4. Read path (`GET /api/v1/resources/:id/related`) returns both directions via SQL `CASE WHEN rl."sourceId" = $1`.
+5. Dedup thresholds (L2-era, now applied to cosine): `< 0.1` = duplicate, `< 0.3` = merge suggestion. Similar bar is `0.6`.
+6. Verified: save → pipeline → hook auto-creates link (Domain name ↔ IANA Example Domains, conf 0.744); backfill script for existing embedded resources created 6 rows for the real user.
+7. `DELETE /api/v1/relationships/:id` removes a link.
 
 ## Pipeline Status (2026-07-30)
 **FULLY FUNCTIONAL** end-to-end:

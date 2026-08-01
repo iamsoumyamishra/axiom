@@ -89,7 +89,7 @@ export class DeduplicationService {
     const rows = await this.prisma.$queryRawUnsafe<
       { resourceId: string; distance: number }[]
     >(
-      `SELECT e."resourceId", e."vector" <-> $1::vector AS distance
+       `SELECT e."resourceId", e."vector" <=> $1::vector AS distance
        FROM "Embedding" e
        JOIN "Resource" r ON r."id" = e."resourceId"
        WHERE e."resourceId" != $2

@@ -68,3 +68,16 @@ export interface ResourceFilters {
   page?: number;
   pageSize?: number;
 }
+
+export interface RelatedResource {
+  relationshipId: string;
+  resource: {
+    id: string;
+    title: string | null;
+    url: string | null;
+    savedAt: string;
+    status: ResourceStatus;
+  };
+  type: string;
+  confidence: number | null;
+}

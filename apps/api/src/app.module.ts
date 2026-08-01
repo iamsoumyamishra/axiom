@@ -11,6 +11,7 @@ import { SearchModule } from './modules/search/search.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { CollectionsModule } from './modules/collections/collections.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { RelationshipsModule } from './modules/relationships/relationships.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     ProjectsModule,
     CollectionsModule,
     DashboardModule,
+    RelationshipsModule,
   ],
 })
 export class AppModule {}

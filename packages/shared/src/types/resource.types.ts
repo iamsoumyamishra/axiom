@@ -55,3 +55,16 @@ export interface AIAnalysisResult {
   duplicateOf?: string;
   duplicateConfidence?: number;
 }
+
+export interface RelatedResource {
+  relationshipId: string;
+  resource: {
+    id: string;
+    title: string | null;
+    url: string | null;
+    savedAt: string;
+    status: ResourceStatus;
+  };
+  type: RelationshipType;
+  confidence: number | null;
+}

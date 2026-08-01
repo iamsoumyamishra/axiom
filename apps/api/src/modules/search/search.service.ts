@@ -43,7 +43,7 @@ export class SearchService {
            r."title",
            r."url",
            r."savedAt",
-           e."vector" <-> $1::vector AS "distance"
+           e."vector" <=> $1::vector AS "distance"
          FROM "Embedding" e
          JOIN "Resource" r ON r."id" = e."resourceId"
          WHERE r."userId" = $2

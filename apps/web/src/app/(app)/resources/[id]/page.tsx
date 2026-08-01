@@ -7,6 +7,7 @@ import { ArrowLeft, ExternalLink, Loader2, User, Calendar, Globe } from 'lucide-
 import { apiGet, apiDelete } from '../../../../lib/api';
 import { cn } from '../../../../lib/utils';
 import type { ResourceDetail } from '../../../../features/resources/types';
+import RelatedResources from '../../../../features/resources/RelatedResources';
 
 function getDomain(url: string | null) {
   if (!url) return null;
@@ -372,6 +373,8 @@ export default function ResourceDetailPage() {
           )}
         </div>
       )}
+
+      {resource.status === 'COMPLETED' && <RelatedResources resourceId={resource.id} />}
     </div>
   );
 }

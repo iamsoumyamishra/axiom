@@ -4,6 +4,7 @@ import { Job } from 'bullmq';
 import { getPrisma } from '@axiom/data';
 import { EmbeddingsService } from './embeddings.service';
 import { DeduplicationService } from '../deduplication/deduplication.service';
+import { RelationshipsService } from '../relationships/relationships.service';
 
 @Processor('embeddings')
 export class EmbeddingsProcessor extends WorkerHost {
@@ -13,6 +14,7 @@ export class EmbeddingsProcessor extends WorkerHost {
   constructor(
     private readonly embeddingsService: EmbeddingsService,
     private readonly dedupService: DeduplicationService,
+    private readonly relationshipsService: RelationshipsService,
   ) {
     super();
   }
@@ -45,6 +47,14 @@ export class EmbeddingsProcessor extends WorkerHost {
       this.logger.log(`Resource ${resourceId} is a duplicate of ${dedupResult.duplicateOf}`);
     } else if (dedupResult?.action === 'flag') {
       this.logger.log(`Resource ${resourceId} may be similar to ${dedupResult.duplicateOf} (confidence: ${dedupResult.confidence.toFixed(4)})`);
+    }
+
+    try {
+      await this.relationshipsService.refreshSimilarRelationships(resourceId, resource.userId);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to generate relationships for resource ${resourceId}: ${(error as Error).message}`,
+      );
     }
   }
 
