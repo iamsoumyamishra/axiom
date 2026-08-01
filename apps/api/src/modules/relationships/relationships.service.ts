@@ -130,6 +130,76 @@ export class RelationshipsService {
     return { message: 'Relationship removed' };
   }
 
+  async getGraph(userId: string, focusId?: string, type?: string) {
+    const resources = await this.prisma.resource.findMany({
+      where: { userId, status: { not: 'DUPLICATE' } },
+      select: {
+        id: true,
+        title: true,
+        url: true,
+        resourceType: true,
+        status: true,
+        aiAnalysis: { select: { category: true } },
+      },
+    });
+
+    const relationships = await this.prisma.relationship.findMany({
+      where: type ? { type } : {},
+      select: {
+        sourceId: true,
+        targetId: true,
+        type: true,
+        confidence: true,
+      },
+    });
+
+    const resourceIds = new Set(resources.map((r) => r.id));
+
+    const edges = relationships
+      .filter(
+        (rel) =>
+          resourceIds.has(rel.sourceId) &&
+          resourceIds.has(rel.targetId) &&
+          rel.sourceId !== rel.targetId,
+      )
+      .map((rel) => ({
+        sourceId: rel.sourceId,
+        targetId: rel.targetId,
+        type: rel.type,
+        confidence: rel.confidence,
+      }));
+
+    let nodes = resources.map((r) => ({
+      id: r.id,
+      title: r.title,
+      url: r.url,
+      resourceType: r.resourceType,
+      status: r.status,
+      category: r.aiAnalysis?.category ?? null,
+    }));
+
+    if (focusId) {
+      const focusEdges = edges.filter(
+        (e) => e.sourceId === focusId || e.targetId === focusId,
+      );
+      const neighborIds = new Set<string>();
+      for (const edge of focusEdges) {
+        neighborIds.add(edge.sourceId === focusId ? edge.targetId : edge.sourceId);
+      }
+      if (neighborIds.size > 0 || resourceIds.has(focusId)) {
+        const included = new Set([focusId, ...neighborIds]);
+        nodes = nodes.filter((n) => included.has(n.id));
+      }
+    }
+
+    const includedIds = new Set(nodes.map((n) => n.id));
+    const scopedEdges = edges.filter(
+      (e) => includedIds.has(e.sourceId) && includedIds.has(e.targetId),
+    );
+
+    return { nodes, edges: scopedEdges };
+  }
+
   private async getEmbeddingVector(resourceId: string): Promise<number[] | null> {
     const rows = await this.prisma.$queryRawUnsafe<{ vector: string }[]>(
       `SELECT "vector"::text FROM "Embedding" WHERE "resourceId" = $1`,

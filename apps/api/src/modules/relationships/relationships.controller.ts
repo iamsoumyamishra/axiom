@@ -11,6 +11,16 @@ import { RelationshipsService } from './relationships.service';
 export class RelationshipsController {
   constructor(private readonly relationshipsService: RelationshipsService) {}
 
+  @Get('graph')
+  @ApiOperation({ summary: 'Get the user knowledge graph (nodes + edges)' })
+  async getGraph(
+    @CurrentUser() user: { sub: string },
+    @Query('focusId') focusId?: string,
+    @Query('type') type?: string,
+  ) {
+    return this.relationshipsService.getGraph(user.sub, focusId || undefined, type || undefined);
+  }
+
   @Get('resources/:id/related')
   @ApiOperation({ summary: 'List related resources' })
   async findRelated(

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Loader2, RotateCcw, User, Calendar, Globe } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, RotateCcw, User, Calendar, Globe, Network } from 'lucide-react';
 import { apiGet, apiDelete, apiPost } from '../../../../lib/api';
 import { cn } from '../../../../lib/utils';
 import type { ResourceDetail } from '../../../../features/resources/types';
@@ -177,6 +177,13 @@ export default function ResourceDetailPage() {
                 Retry
               </button>
             )}
+            <Link
+              href={`/graph?focus=${resource.id}`}
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <Network className="h-3.5 w-3.5" />
+              View in graph
+            </Link>
             <button
               onClick={handleDelete}
               className="text-sm text-destructive hover:underline"
